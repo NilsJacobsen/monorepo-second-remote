@@ -1,5 +1,5 @@
 {
-  "name": "@legit/monorepo",
+  "name": "Legit-Control/monorepo",
   "private": true,
   "version": "0.1.0",
   "workspaces": [
