@@ -1,5 +1,17 @@
 # @legit-sdk/core
 
+## 0.1.6
+
+### Patch Changes
+
+- Update Readme
+
+## 0.1.5
+
+### Patch Changes
+
+- Update license in package.json
+
 ## 0.1.4
 
 ### Patch Changes
