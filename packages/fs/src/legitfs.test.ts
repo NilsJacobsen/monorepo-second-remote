@@ -355,19 +355,9 @@ describe('openLegitFs', () => {
     // 2. Write "first operation" to operation file
     await legitfs.promises.writeFile(operationFilePath, 'first operation');
 
-    console.log(
-      'branches',
-      await isogit.listBranches({ fs: memfs, dir: repoPath })
-    );
     const branches = await isogit.listBranches({ fs: memfs, dir: repoPath });
     expect(branches).toContain('main');
     expect(branches.some(b => b.endsWith('_main-operation'))).toBe(true);
-
-    console.log(
-      'branches after',
-      await isogit.listBranches({ fs: memfs, dir: repoPath })
-    );
-    console.log('operationBranch', operationBranch);
 
     // Get the first operation commit
     const opCommits1 = await isogit.log({
