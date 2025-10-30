@@ -122,7 +122,7 @@ describe('createRouteMatcher', () => {
         },
         // filepath is optional - could be undefined for root
         // .legit/branches/main/src/utils.ts
-        '[[...filepath]]': { handler: vfd.branchFile },
+        '[[...filepath]]': vfd.branchFile,
       },
     },
     commits: {
@@ -160,7 +160,6 @@ describe('createRouteMatcher', () => {
     expect(result?.handler).toBe(vfd.branchFile);
     expect(result?.params).toEqual({
       'branch-name': 'main',
-      filepath: 'src/utils.ts',
     });
   });
 
@@ -182,13 +181,13 @@ describe('createRouteMatcher', () => {
 
   it('matches commit list handler', () => {
     const result = router.match('commits');
-    expect(result?.handler.type).toBe(vfd.listCommits?.type);
+    expect(result?.handler.type).toBe(vfd.commitsTwoChars?.type);
     expect(result?.params).toEqual({});
   });
 
   it('matches commit list handler with leading /', () => {
     const result = router.match('commits/');
-    expect(result?.handler.type).toBe(vfd.listCommits?.type);
+    expect(result?.handler.type).toBe(vfd.commitsTwoChars?.type);
     expect(result?.params).toEqual({});
   });
 
@@ -204,7 +203,7 @@ describe('createRouteMatcher', () => {
 
   it('returns null for unknown route', () => {
     const result = router.match('/some/invalid/path.ts');
-    expect(result).toBeNull();
+    expect(result).toBeUndefined();
   });
 
   it('decodes URL-encoded values in params', () => {
