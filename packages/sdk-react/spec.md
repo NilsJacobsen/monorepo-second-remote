@@ -1,10 +1,10 @@
-# React Wrapper RFC
+# React wrapper RFC
 
-## 1️⃣ Architecture Overview
+## Architecture
 
 ```bash
 +------------------------+
-| LegitProvider          |  <-- Manages SDK init, polling, and singleton FS instance
+| LegitProvider          |  // SDK init, polling, singleton FS
 |------------------------|
 | state: legitFs         |
 | state: loading         |
@@ -14,7 +14,7 @@
          |
          v
 +------------------------+
-| useLegitFile(path)     |  <-- Consumes Provider context
+| useLegitFile(path)     |  // Reads from provider context
 |------------------------|
 | state: content         |
 | state: history         |
@@ -24,12 +24,12 @@
          |
          v
 +------------------------+
-| Components             |  <-- Editor, HistoryEntry
+| Components             |  // Editor, HistoryEntry, etc.
 +------------------------+
 
 ```
 
-## 2️⃣ Provider API
+## Provider API
 
 ```ts
 interface LegitProviderProps {
@@ -46,41 +46,39 @@ function LegitProvider({ children }: LegitProviderProps): JSX.Element;
 function useLegitContext(): LegitContextValue;
 ```
 
-### Behavior:
+### Behavior
 
-- Initializes `legitFs` once.
-- Polls the `.legit/branches/main/.legit/head`.
-- Provides `legitFs` instance to all `useLegitFile` hooks.
+- Initializes `legitFs` exactly once.
+- Polls repository HEAD on an interval.
+- Provides the shared `legitFs` instance to hooks.
 - Exposes global `loading` and `error` states.
 
-## 3️⃣ Hook: useLegitFile
+## Hook: useLegitFile
 
 ```ts
 function useLegitFile(path: string): UseLegitFileReturn;
 ```
 
-## 4️⃣ Lifecycle Flow
+## Lifecycle
 
 1. Provider mounts
-
-- Initializes `legitFs`
-- Sets `loading = true`
-- Polls HEAD every 200ms
+   - Initialize `legitFs`
+   - Set `loading = true`
+   - Start polling HEAD (default: 200ms)
 
 2. Hook mounts
+   - Use provider `legitFs`
+   - Read file and seed local state
+   - Fetch `history` and optionally resolve past content
 
-- Subscribes to Provider’s `legitFs`
-- Reads file content, initializes local state
-- Fetches `history` and enriches with past commit content
+3. Updates / commits
+   - `setContent(text)` writes to FS and commits; provider polling picks up changes
 
-3. Updates / Commits
-   - `setContent(text)` → writes to FS → triggers SDK commit → Provider polling updates hooks
-
-## 5️⃣ Example Usage
+## Example
 
 ```ts
 <LegitProvider>
-  <Page />  // can use useLegitFile for any path
+  <Page />  // components can call useLegitFile for any path
 </LegitProvider>
 ```
 
@@ -109,16 +107,16 @@ const Page = () => {
 };
 ```
 
-## Pros
+## Why this design
 
-- **Singleton SDK** — no multiple initializations of legitFs.
-- **Centralized polling** — all hooks see updates without extra intervals.
-- **Lightweight hooks** — just consume context, don’t manage polling or FS lifecycle.
-- **Improved performance** — avoids repeated HEAD reads and redundant initLegitFs calls.
+- **Single SDK instance**: avoids multiple `initLegitFs` calls.
+- **Centralized polling**: hooks update without their own timers.
+- **Thin hooks**: consume context; no lifecycle management.
+- **Fewer reads**: avoids redundant HEAD checks.
 
 ## Notes
 
-- Provider should handle cleanup of polling interval on unmount.
-- Optionally expose configurable polling interval via props.
-- Provider could also manage global cache of file content for faster hook access.
-- Hooks remain pure consumers of the context: all FS access goes through legitFs.
+- Provider must clear the polling interval on unmount.
+- Polling interval can be configurable via props.
+- Provider may cache file contents for faster first reads.
+- Hooks only consume context; all FS access goes through `legitFs`.
