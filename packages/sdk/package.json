@@ -1,28 +1,37 @@
 {
-  "name": "legit-sdk",
-  "version": "0.1.0-alpha.1",
+  "name": "@legit-sdk/core",
+  "version": "0.1.8",
   "description": "Legit SDK - Infrastructure for write-enabled AI",
-  "main": "./dist/legit-sdk.js",
-  "module": "./dist/legit-sdk.js",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "type": "module",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/legit-sdk.js"
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
     }
   },
   "scripts": {
     "test": "vitest",
     "dev": "node  --loader ts-node/esm --inspect ./node_modules/vite-node/dist/cli.mjs --watch src/vite.ts",
-    "build": "tsc && node esbuild.config.js",
+    "build": "tsc && node esbuild.config.js && rollup -c rollup.dts.config.js",
     "build:watch": "tsc --noEmitOnError false --watch",
     "test:watch": "vitest --watch"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC",
+  "license": "PolyForm Noncommercial License 1.0.0",
   "packageManager": "pnpm@10.4.1",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist/index.js",
+    "dist/index.d.ts",
+    "LICENSE"
+  ],
   "devDependencies": {
     "@types/node": "22.14.1",
     "browser-fs-access": "^0.38.0",
@@ -32,6 +41,8 @@
     "https-browserify": "^1.0.0",
     "path-browserify": "^1.0.1",
     "querystring-es3": "^0.2.1",
+    "rollup": "^4.52.5",
+    "rollup-plugin-dts": "^6.2.3",
     "stream-browserify": "^3.0.0",
     "stream-http": "^3.2.0",
     "ts-node": "^10.9.2",

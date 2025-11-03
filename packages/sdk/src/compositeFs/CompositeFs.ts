@@ -6,7 +6,7 @@ import CompositFsFileHandle from './CompositeFsFileHandle.js';
 import { CompositeSubFs } from './CompositeSubFs.js';
 import { CompositeFsDir } from './CompositeFsDir.js';
 import { PassThroughSubFs } from './subsystems/PassThroughSubFs.js';
-import { PassThroughToAsyncFsSubFs } from './/subsystems/PassThroughToAsyncFsSubFs.js';
+import { PassThroughToAsyncFsSubFs } from './subsystems/PassThroughToAsyncFsSubFs.js';
 import { IStats } from 'memfs/lib/node/types/misc.js';
 
 /**

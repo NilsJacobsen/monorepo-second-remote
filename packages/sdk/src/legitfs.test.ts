@@ -338,7 +338,7 @@ describe('openLegitFs', () => {
   it('should create operation commits with correct parentage and messages', async () => {
     const textFilePath = `${repoPath}/.legit/branches/main/text.txt`;
     const operationFilePath = `${repoPath}/.legit/branches/main/.legit/operation`;
-    const operationBranch = `refs/heads/${'legit____main-operation'}`;
+    const operationBranch = `refs/heads/${'legit/__main-operation'}`;
 
     // 1. Create text.txt in main branch
     await legitfs.promises.writeFile(textFilePath, 'hello world');
