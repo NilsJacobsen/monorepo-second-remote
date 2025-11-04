@@ -1,5 +1,11 @@
 # @legit-sdk/react
 
+## 0.1.1
+
+### Patch Changes
+
+- Fix fresh repo behavior
+
 ## 0.1.0
 
 ### Minor Changes
