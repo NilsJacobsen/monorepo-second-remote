@@ -1,5 +1,11 @@
 # @legit-sdk/react
 
+## 0.1.3
+
+### Patch Changes
+
+- @legit-sdk/react return null when file not available in hook
+
 ## 0.1.2
 
 ### Patch Changes
