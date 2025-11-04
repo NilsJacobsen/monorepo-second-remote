@@ -16,7 +16,7 @@
   "scripts": {
     "test": "vitest",
     "test:watch": "vitest --watch",
-    "build": "tsc"
+    "build": "tsc && rollup -c rollup.dts.config.js && node esbuild.config.js"
   },
   "keywords": [],
   "author": "",
@@ -34,6 +34,9 @@
     "jsdom": "^27.1.0",
     "happy-dom": "^14.12.3",
     "memfs": "^4.14.0",
+    "esbuild": "^0.24.0",
+    "rollup": "^4.24.0",
+    "rollup-plugin-dts": "^6.1.1",
     "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   },
