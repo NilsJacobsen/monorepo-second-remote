@@ -3,7 +3,7 @@ import { useLegitContext } from './LegitProvider';
 import { HistoryItem } from '@legit-sdk/core';
 
 export type UseLegitFileReturn = {
-  content: string;
+  content: string | null;
   setContent: (newText: string) => Promise<void>;
   history: HistoryItem[];
   getPastState: (commitHash: string) => Promise<string>;
@@ -13,7 +13,7 @@ export type UseLegitFileReturn = {
 
 export function useLegitFile(path: string): UseLegitFileReturn {
   const { legitFs, error: fsError, head } = useLegitContext();
-  const [content, setContent] = useState('');
+  const [content, setContent] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>();
@@ -49,11 +49,17 @@ export function useLegitFile(path: string): UseLegitFileReturn {
           }
         }
 
-        setContent(text);
+        setContent(text ?? null);
         setHistory(parsedHistory);
         setError(undefined);
       } catch (err) {
-        setError(err as Error);
+        if ((err as Error).message.includes('ENOENT')) {
+          // don't throw an error, just set the content and history to empty if file doesnt exist
+          setContent(null);
+          setHistory([]);
+        } else {
+          setError(err as Error);
+        }
       } finally {
         setLoading(false);
       }
