@@ -1,5 +1,11 @@
 # @legit-sdk/react
 
+## 0.1.8
+
+### Patch Changes
+
+- Improve wrapper to make usage simpler
+
 ## 0.1.7
 
 ### Patch Changes
