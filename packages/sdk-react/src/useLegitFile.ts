@@ -160,8 +160,10 @@ export function useLegitFile(
   const getPastState = async (oid: string) => {
     if (!legitFs) return '';
     try {
+      // Remove leading slash from path for git commit file access
+      const gitPath = path.startsWith('/') ? path.slice(1) : path;
       const past = await legitFs.promises.readFile(
-        `/.legit/commits/${oid.slice(0, 2)}/${oid.slice(2)}${path}`,
+        `/.legit/commits/${oid.slice(0, 2)}/${oid.slice(2)}/${gitPath}`,
         'utf8'
       );
       return past as unknown as string;
