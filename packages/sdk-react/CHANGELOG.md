@@ -1,5 +1,11 @@
 # @legit-sdk/react
 
+## 0.1.4
+
+### Patch Changes
+
+- 2834497: Add legitFs as return of hook in legit-sdk/react
+
 ## 0.1.3
 
 ### Patch Changes
