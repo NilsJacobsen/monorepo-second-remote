@@ -31,6 +31,8 @@ export interface LegitProviderProps {
   children: ReactNode;
 }
 
+const DEFAULT_POLL_INTERVAL = 200;
+
 export const LegitProvider = ({ children }: LegitProviderProps) => {
   const [legitFs, setLegitFs] = useState<Awaited<
     ReturnType<typeof initLegitFs>
@@ -43,6 +45,8 @@ export const LegitProvider = ({ children }: LegitProviderProps) => {
   useEffect(() => {
     let isMounted = true;
     let pollHead: NodeJS.Timeout | undefined;
+    let lastSeenHead = '';
+    let debounceTimeout: NodeJS.Timeout | undefined;
 
     const initFs = async () => {
       try {
@@ -64,14 +68,20 @@ export const LegitProvider = ({ children }: LegitProviderProps) => {
               '/.legit/branches/main/.legit/head',
               'utf8'
             );
-            if (newHead !== headRef.current) {
-              headRef.current = newHead;
-              setHead(newHead);
+            if (newHead !== lastSeenHead) {
+              lastSeenHead = newHead;
+              clearTimeout(debounceTimeout);
+              debounceTimeout = setTimeout(() => {
+                if (newHead !== headRef.current) {
+                  headRef.current = newHead;
+                  setHead(newHead);
+                }
+              }, DEFAULT_POLL_INTERVAL);
             }
           } catch (e) {
             console.error('Polling head failed:', e);
           }
-        }, 200);
+        }, DEFAULT_POLL_INTERVAL);
 
         return () => clearInterval(pollHead);
       } catch (err) {
