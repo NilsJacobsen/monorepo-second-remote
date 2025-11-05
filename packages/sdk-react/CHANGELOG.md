@@ -1,5 +1,11 @@
 # @legit-sdk/react
 
+## 0.1.7
+
+### Patch Changes
+
+- Prevent race condition by debouncing head updates
+
 ## 0.1.6
 
 ### Patch Changes
