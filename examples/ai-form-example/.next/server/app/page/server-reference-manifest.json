@@ -1,0 +1,20 @@
+{
+  "node": {
+    "7f2bd929b418407731a6c0febddbfd50b7079ead7d": {
+      "workers": {
+        "app/page": {
+          "moduleId": "[project]/examples/ai-form-example/.next-internal/server/app/page/actions.js { ACTIONS_MODULE0 => \"[project]/examples/ai-form-example/lib/submitSignup.tsx [app-rsc] (ecmascript)\" } [app-rsc] (server actions loader, ecmascript)",
+          "async": false,
+          "exportedName": "submitSignup",
+          "filename": "examples/ai-form-example/lib/submitSignup.tsx"
+        }
+      },
+      "layer": {
+        "app/page": "action-browser"
+      },
+      "exportedName": "submitSignup",
+      "filename": "examples/ai-form-example/lib/submitSignup.tsx"
+    }
+  },
+  "edge": {}
+}
