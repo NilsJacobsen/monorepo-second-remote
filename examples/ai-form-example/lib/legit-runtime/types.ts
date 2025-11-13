@@ -76,3 +76,8 @@ export type AssistantCloudThreadsUpdateBody = {
   metadata?: unknown;
   is_archived?: boolean;
 };
+
+export type CloudMessageWithoutId = Omit<
+  CloudMessage,
+  'id' | 'height' | 'parent_id'
+>;

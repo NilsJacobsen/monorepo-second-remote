@@ -5,8 +5,9 @@ import {
   type ThreadMessageLike,
 } from '@assistant-ui/react';
 
-import type { LegitFsInstance, CloudMessage } from './types';
-import { readJson } from './storage';
+import type { CloudMessage } from './types';
+import { readJson, readOperationHistory } from './storage';
+import { createUIMessages } from './createUIMessages';
 
 type SyncOptions = {
   threadId: string;
@@ -26,7 +27,9 @@ type StoredMessage = Omit<CloudMessage, 'created_at' | 'updated_at'> & {
 const DEFAULT_THREAD_FORMAT = 'aui/v0';
 
 // Normalize the message to the ThreadMessageLike format
-function toThreadMessageLike(message: StoredMessage): ThreadMessageLike | null {
+function toThreadMessageLike(
+  message: StoredMessage | CloudMessage
+): ThreadMessageLike | null {
   if (message.format !== DEFAULT_THREAD_FORMAT) {
     return null;
   }
@@ -68,12 +71,10 @@ export async function syncThreadFromLegitFs({
   threadId,
   threadApi,
 }: SyncOptions): Promise<void> {
-  const stored = await readJson<StoredMessage[]>(
-    `/.legit/branches/${threadId}/messages.json`,
-    []
-  );
+  const operationHistory = await readOperationHistory(threadId);
+  const operationHistoryUI = await createUIMessages(operationHistory);
 
-  const threadMessages = stored
+  const threadMessages = operationHistoryUI
     .map(toThreadMessageLike)
     .filter((message): message is ThreadMessageLike => message !== null);
 

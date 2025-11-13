@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   try {
     const result = streamText({
       model: azure('gpt-4o'),
-      messages,
+      messages: messages,
       system,
       tools: {
         ...frontendTools(tools ?? {}),

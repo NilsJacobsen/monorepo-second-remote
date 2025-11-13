@@ -1,6 +1,7 @@
 import { initLegitFs } from '@legit-sdk/core';
 import memfs from 'memfs';
 import { LegitFsInstance } from './types';
+import { threadId } from 'node:worker_threads';
 
 let legitFsPromise: Promise<LegitFsInstance> | null = null;
 
@@ -68,4 +69,36 @@ export async function readJson<T>(path: string, defaultValue: T): Promise<T> {
 export async function writeJson(path: string, data: unknown): Promise<void> {
   const fs = await getLegitFs();
   await fs.promises.writeFile(path, JSON.stringify(data), 'utf8');
+}
+
+export async function readHead(threadId: string): Promise<string> {
+  const fs = await getLegitFs();
+  const head = await fs.promises.readFile(
+    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/head`,
+    'utf8'
+  );
+  return head;
+}
+
+export async function writeOperation(
+  threadId: string,
+  content: string
+): Promise<void> {
+  const fs = await getLegitFs();
+  await fs.promises.writeFile(
+    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/operation`,
+    content,
+    'utf8'
+  );
+}
+
+export async function readOperationHistory(threadId): Promise<any> {
+  const fs = await getLegitFs();
+  const operationHistory = await fs.promises.readFile(
+    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/operationHistory`,
+    'utf8'
+  );
+  return operationHistory.length > 0
+    ? JSON.parse(operationHistory)
+    : JSON.parse('[]');
 }

@@ -27,7 +27,6 @@ export function MyRuntimeProvider({
     cloud: legitCloud,
 
     headers: async () => {
-      console.log('getting headers');
       await new Promise(resolve => setTimeout(resolve, 1));
       return (window as any).threadContext;
     },

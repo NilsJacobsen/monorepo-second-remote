@@ -4,34 +4,27 @@ import type {
   AssistantCloudThreadMessageListQuery,
   AssistantCloudThreadMessageListResponse,
   CloudMessage,
+  CloudMessageWithoutId,
 } from './types';
-import { readJson, writeJson } from './storage';
-
-type StoredMessage = Omit<CloudMessage, 'created_at' | 'updated_at'> & {
-  created_at: string;
-  updated_at: string;
-};
-
-function getMessagesPath(threadId: string) {
-  return `/.legit/branches/${threadId}/messages.json`;
-}
+import { readOperationHistory, writeOperation } from './storage';
+import { createUIMessages } from './createUIMessages';
 
 export class LegitThreadMessages {
   public async list(
     threadId: string,
     _query?: AssistantCloudThreadMessageListQuery
   ): Promise<AssistantCloudThreadMessageListResponse> {
-    const stored = await readJson<StoredMessage[]>(
-      getMessagesPath(threadId),
-      []
-    );
+    const operationHistory = await readOperationHistory(threadId);
+    const operationHistoryUI = await createUIMessages(operationHistory);
 
-    const messages: CloudMessage[] = stored.map((message, index) => ({
-      ...message,
-      height: index,
-      created_at: new Date(message.created_at),
-      updated_at: new Date(message.updated_at),
-    }));
+    const messages: CloudMessage[] = operationHistoryUI.map(
+      (message, index) => ({
+        ...message,
+        height: index,
+        created_at: new Date(message.created_at),
+        updated_at: new Date(message.updated_at),
+      })
+    );
 
     return { messages };
   }
@@ -40,22 +33,18 @@ export class LegitThreadMessages {
     threadId: string,
     body: AssistantCloudThreadMessageCreateBody
   ): Promise<AssistantCloudMessageCreateResponse> {
-    const path = getMessagesPath(threadId);
-    const stored = await readJson<StoredMessage[]>(path, []);
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const createdAt = new Date().toISOString();
 
-    stored.push({
-      id: messageId,
-      parent_id: body.parent_id ?? null,
-      height: stored.length,
-      created_at: createdAt,
-      updated_at: createdAt,
+    const newMessageData: CloudMessageWithoutId = {
+      // TODO also dont save created_at since we gain this from the commit date
+      created_at: new Date(),
+      // TODO open question when does a message update
+      updated_at: new Date(),
       format: body.format,
       content: body.content,
-    });
+    };
 
-    await writeJson(path, stored);
+    await writeOperation(threadId, JSON.stringify(newMessageData));
 
     return { message_id: messageId };
   }

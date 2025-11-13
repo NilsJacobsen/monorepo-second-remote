@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useAssistantApi } from '@assistant-ui/react';
 
 import { syncThreadFromLegitFs, useLegitFs } from '@/lib/legit-runtime';
+import { readHead } from './storage';
 
 const POLL_INTERVAL_MS = 100;
 
@@ -19,7 +20,6 @@ export function LegitFsHeadPoller() {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let lastSyncedHead: string | null = null;
-    const headPath = `/.legit/branches/${threadId}/.legit/head`;
 
     const scheduleNext = () => {
       if (!cancelled) {
@@ -29,7 +29,7 @@ export function LegitFsHeadPoller() {
 
     const tick = async () => {
       try {
-        const head = await legitFs.promises.readFile(headPath, 'utf8');
+        const head = await readHead(threadId);
         if (cancelled) {
           return;
         }
