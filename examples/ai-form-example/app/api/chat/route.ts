@@ -5,7 +5,7 @@ import {
   convertMessagesToModelMessages,
   streamTextToDataStreamResponse,
   type UIMessage,
-} from '@/lib/customConverters';
+} from '@/lib/legit-runtime/customConverters';
 
 export const runtime = 'nodejs';
 

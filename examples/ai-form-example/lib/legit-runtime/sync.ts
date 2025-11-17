@@ -6,7 +6,7 @@ import {
 } from '@assistant-ui/react';
 
 import type { CloudMessage } from './types';
-import { readJson, readOperationHistory } from './storage';
+import { readOperationHistory } from './storage';
 import { createUIMessages } from './createUIMessages';
 
 type SyncOptions = {

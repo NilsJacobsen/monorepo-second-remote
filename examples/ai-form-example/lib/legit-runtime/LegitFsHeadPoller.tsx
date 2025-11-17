@@ -6,7 +6,7 @@ import { useAssistantApi } from '@assistant-ui/react';
 import { syncThreadFromLegitFs, useLegitFs } from '@/lib/legit-runtime';
 import { readHead } from './storage';
 
-const POLL_INTERVAL_MS = 100;
+const POLL_INTERVAL_MS = 300;
 
 export function LegitFsHeadPoller() {
   const { legitFs } = useLegitFs();
