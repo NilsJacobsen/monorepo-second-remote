@@ -44,7 +44,7 @@ export class LegitThreadMessages implements AssistantCloudThreadMessages {
     );
 
     console.log(operationHistoryContent);
-    let messages: CloudMessage[] = [];
+    const messages: CloudMessage[] = [];
 
     if (operationHistoryContent !== '') {
       const parsedOperationContent = JSON.parse(

@@ -8,6 +8,11 @@ export type AssistantCloudConfig = {
   legitFs: LegitFsInstance;
 };
 
+export type MetadataLike = {
+  custom?: unknown;
+  [key: string]: unknown;
+};
+
 export type CloudMessage = {
   id: string;
   parent_id: string | null;
@@ -16,6 +21,7 @@ export type CloudMessage = {
   updated_at: Date;
   format: string;
   content: Record<string, unknown>;
+  metadata?: MetadataLike;
 };
 
 export type AssistantCloudThreadMessageListQuery = {

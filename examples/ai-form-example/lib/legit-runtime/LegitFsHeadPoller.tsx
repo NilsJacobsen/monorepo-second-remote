@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useAssistantApi } from '@assistant-ui/react';
+import { useAssistantApi, useAssistantEvent } from '@assistant-ui/react';
 
 import { syncThreadFromLegitFs, useLegitFs } from '@/lib/legit-runtime';
 import { readHead } from './storage';
 
-const POLL_INTERVAL_MS = 300;
+const POLL_INTERVAL_MS = 100;
 
 export function LegitFsHeadPoller() {
   const { legitFs } = useLegitFs();
@@ -44,11 +44,13 @@ export function LegitFsHeadPoller() {
           return;
         }
 
-        await syncThreadFromLegitFs({
-          threadId,
-          threadApi,
-        });
-        lastSyncedHead = head;
+        setTimeout(async () => {
+          await syncThreadFromLegitFs({
+            threadId,
+            threadApi,
+          });
+          lastSyncedHead = head;
+        }, 100);
       } catch (error) {
         const code = (error as { code?: string }).code;
         if (code !== 'ENOENT') {

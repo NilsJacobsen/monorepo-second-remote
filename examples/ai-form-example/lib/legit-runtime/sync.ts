@@ -5,7 +5,7 @@ import {
   type ThreadMessageLike,
 } from '@assistant-ui/react';
 
-import type { CloudMessage } from './types';
+import type { CloudMessage, MetadataLike } from './types';
 import { readOperationHistory } from './storage';
 import { createUIMessages } from './createUIMessages';
 
@@ -22,6 +22,24 @@ type SyncOptions = {
 type StoredMessage = Omit<CloudMessage, 'created_at' | 'updated_at'> & {
   created_at: string;
   updated_at: string;
+};
+
+const normalizeMetadata = (
+  metadata: unknown
+): ThreadMessageLike['metadata'] => {
+  if (metadata && typeof metadata === 'object') {
+    const metadataLike = metadata as MetadataLike;
+    const custom =
+      metadataLike.custom && typeof metadataLike.custom === 'object'
+        ? metadataLike.custom
+        : {};
+    return {
+      ...metadataLike,
+      custom,
+    } as ThreadMessageLike['metadata'];
+  }
+
+  return { custom: {} };
 };
 
 const DEFAULT_THREAD_FORMAT = 'aui/v0';
@@ -55,7 +73,7 @@ function toThreadMessageLike(
         ? new Date(raw.createdAt)
         : new Date(message.created_at);
 
-  const metadata = raw.metadata ?? { custom: {} };
+  const metadata = normalizeMetadata(message.metadata);
 
   return {
     ...raw,
@@ -71,6 +89,7 @@ export async function syncThreadFromLegitFs({
   threadId,
   threadApi,
 }: SyncOptions): Promise<void> {
+  console.log('sync initiated');
   const operationHistory = await readOperationHistory(threadId);
   const operationHistoryUI = await createUIMessages(operationHistory);
 

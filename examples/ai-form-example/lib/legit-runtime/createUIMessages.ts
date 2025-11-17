@@ -21,6 +21,12 @@ export const createUIMessages = async (
           operation.parentOids[0] === operation.parentOids[1]
             ? null
             : operation.parentOids[0]!,
+        metadata: {
+          custom: {
+            parent_ids: operation.parentOids,
+            depending_on_commit_id: operation.parentOids[1] ?? null,
+          },
+        },
         ...cloudMessageWithoutId,
       };
       messages.unshift(composedMessage);

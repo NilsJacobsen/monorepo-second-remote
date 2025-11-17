@@ -3,12 +3,13 @@ import {
   BranchPickerPrimitive,
   ComposerPrimitive,
   MessagePrimitive,
+  MessageState,
   ThreadPrimitive,
   useAssistantApi,
   useAssistantRuntime,
   useAssistantState,
 } from '@assistant-ui/react';
-import { useEffect, type FC } from 'react';
+import { useEffect, useState, type FC } from 'react';
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -25,6 +26,8 @@ import { Button } from '@/components/ui/button';
 import { MarkdownText } from '@/components/assistant-ui/markdown-text';
 import { TooltipIconButton } from '@/components/assistant-ui/tooltip-icon-button';
 import { syncThreadFromLegitFs, useLegitFs } from '@/lib/legit-runtime';
+import { HistoryItem } from '@legit-sdk/core';
+import { ChangesCard } from './changes-card';
 
 export const Thread: FC = () => {
   return (
@@ -156,44 +159,9 @@ const ComposerAction: FC = () => {
 };
 
 const UserMessage: FC = () => {
-  const { legitFs } = useLegitFs();
-  const api = useAssistantApi();
-
-  const logMessages = async () => {
-    if (legitFs) {
-      const content = await legitFs.promises.readFile(
-        `/.legit/branches/main/messages.json`,
-        'utf8'
-      );
-      console.log(JSON.parse(content));
-    }
-  };
-
-  const logUIMessages = async () => {
-    console.log(api.thread().getState());
-  };
-
-  const removeAMessage = async () => {
-    if (legitFs) {
-      const content = await legitFs.promises.readFile(
-        `/.legit/branches/main/messages.json`,
-        'utf8'
-      );
-      const messages = JSON.parse(content);
-      messages.pop();
-      await legitFs.promises.writeFile(
-        `/.legit/branches/main/messages.json`,
-        JSON.stringify(messages)
-      );
-    }
-  };
-
   return (
     <MessagePrimitive.Root className="grid w-full max-w-(--thread-max-width) auto-rows-auto grid-cols-[minmax(72px,1fr)_auto] gap-y-2 py-4 [&:where(>*)]:col-start-2">
       <UserActionBar />
-      <div onClick={() => logUIMessages()}>log</div>
-      <div onClick={() => removeAMessage()}>remove</div>
-
       <div className="bg-muted text-foreground col-start-2 row-start-2 max-w-[calc(var(--thread-max-width)*0.8)] wrap-break-word rounded-3xl px-5 py-2.5">
         <MessagePrimitive.Parts />
       </div>
@@ -241,6 +209,7 @@ const AssistantMessage: FC = () => {
     <MessagePrimitive.Root className="relative grid w-full max-w-(--thread-max-width) grid-cols-[auto_auto_1fr] grid-rows-[auto_1fr] py-4">
       <div className="text-foreground col-span-2 col-start-2 row-start-1 my-1.5 max-w-[calc(var(--thread-max-width)*0.8)] wrap-break-word leading-7">
         <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+        <ChangesCard />
       </div>
 
       <AssistantActionBar />

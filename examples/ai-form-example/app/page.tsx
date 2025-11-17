@@ -9,11 +9,15 @@ import Link from 'next/link';
 import { useEffect } from 'react';
 import { useLegitFs } from '@/lib/legit-runtime';
 import { writeJson } from '@/lib/legit-runtime/storage';
+import { PencilIcon } from 'lucide-react';
 
-const SetFormFieldTool = () => {
+const SetFormFieldTool = props => {
+  const { name } = props.args;
   return (
-    <p className="text-center font-mono text-sm font-bold text-blue-500">
-      set_form_field(...)
+    <p className="text-[14px] font-medium text-gray-400">
+      <PencilIcon className="w-4 h-4 inline-block mr-3" />
+      Try to update field{' - '}
+      <span className="font-mono text-blue-500">{name}</span>
     </p>
   );
 };
