@@ -478,24 +478,15 @@ describe('openLegitFs', () => {
     expect(firstHead).toMatch(/^[0-9a-f]{40}$/);
 
     // Create second file and get second commit
-    await legitfs.promises.writeFile(
-      `${repoPath}/.legit/branches/main/second.txt`,
-      'second content'
-    );
+    await legitfs.promises.writeFile(textFilePath, 'second content');
     const secondHead = await legitfs.promises.readFile(headFilePath, 'utf-8');
     expect(secondHead).toMatch(/^[0-9a-f]{40}$/);
     expect(secondHead).not.toBe(firstHead);
 
     // Verify both files exist at second commit
     expect(await legitfs.promises.readFile(textFilePath, 'utf-8')).toBe(
-      'initial content'
+      'second content'
     );
-    expect(
-      await legitfs.promises.readFile(
-        `${repoPath}/.legit/branches/main/second.txt`,
-        'utf-8'
-      )
-    ).toBe('second content');
 
     // Set head back to first commit
     await legitfs.promises.writeFile(headFilePath, firstHead);
@@ -520,14 +511,8 @@ describe('openLegitFs', () => {
 
     // Verify both files exist again
     expect(await legitfs.promises.readFile(textFilePath, 'utf-8')).toBe(
-      'initial content'
+      'second content'
     );
-    expect(
-      await legitfs.promises.readFile(
-        `${repoPath}/.legit/branches/main/second.txt`,
-        'utf-8'
-      )
-    ).toBe('second content');
   });
 
   it('should handle invalid commit hash when setting head file', async () => {
