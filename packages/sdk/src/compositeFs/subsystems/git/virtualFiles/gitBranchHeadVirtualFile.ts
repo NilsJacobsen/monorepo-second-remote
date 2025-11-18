@@ -99,6 +99,44 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
     }
   },
 
+  writeFile: async ({
+    filePath,
+    gitRoot,
+    nodeFs,
+    content,
+    cacheFs,
+    pathParams,
+  }) => {
+    console.log('gitBranchHeadVirtualFile writeFile called', {
+      pathParams,
+      content,
+    });
+    if (pathParams.branchName === undefined) {
+      throw new Error('branchName should be in pathParams');
+    }
+
+    const newHead = content.toString().trim();
+
+    // Check if the new head commit exists
+    try {
+      await git.readCommit({
+        fs: nodeFs,
+        dir: gitRoot,
+        oid: newHead,
+      });
+    } catch (error) {
+      throw new Error(`Commit ${newHead} does not exist in the repository`);
+    }
+
+    await git.writeRef({
+      fs: nodeFs,
+      dir: gitRoot,
+      ref: 'refs/heads/' + pathParams.branchName,
+      value: newHead,
+      force: true,
+    });
+  },
+
   rename(args) {
     throw new Error('not implementsd');
   },
