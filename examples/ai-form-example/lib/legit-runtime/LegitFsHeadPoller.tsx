@@ -9,10 +9,9 @@ import { readHead } from './storage';
 const POLL_INTERVAL_MS = 100;
 
 export function LegitFsHeadPoller() {
-  const { legitFs } = useLegitFs();
+  const { legitFs, threadId } = useLegitFs();
   const api = useAssistantApi();
   const threadApi = api.thread();
-  const threadId = 'main';
 
   useEffect(() => {
     if (!legitFs || !threadId) return;

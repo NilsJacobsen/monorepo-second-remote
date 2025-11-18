@@ -1,7 +1,7 @@
 import { initLegitFs } from '@legit-sdk/core';
 import memfs from 'memfs';
 import { LegitFsInstance } from './types';
-import { threadId } from 'node:worker_threads';
+import { BRANCH_ROOT } from './LegitFsProvider';
 
 let legitFsPromise: Promise<LegitFsInstance> | null = null;
 
@@ -18,33 +18,14 @@ export async function getLegitFs(): Promise<LegitFsInstance> {
   return legitFsPromise;
 }
 
-export const LEGIT_BRANCH_ROOT = '/.legit/branches';
-
-// export async function ensureBranchStructure(threadId: string): Promise<void> {
-//   const fs = await getLegitFs();
-//   await fs.promises.mkdir(LEGIT_BRANCH_ROOT, { recursive: true });
-
-//   const branchPath = `${LEGIT_BRANCH_ROOT}/${threadId}`;
-//   try {
-//     await fs.promises.mkdir(branchPath, { recursive: false });
-//   } catch (error) {
-//     if ((error as { code?: string }).code !== 'EEXIST') {
-//       throw error;
-//     }
-//   }
-
-//   const branchLegitPath = `${branchPath}/.legit`;
-//   await fs.promises.mkdir(branchLegitPath, { recursive: true });
-// }
-
 export async function listBranches(): Promise<string[]> {
   const fs = await getLegitFs();
   try {
-    const branches = await fs.promises.readdir(LEGIT_BRANCH_ROOT);
+    const branches = await fs.promises.readdir(BRANCH_ROOT);
     return branches.filter(name => !name.startsWith('.'));
   } catch (error) {
     if ((error as { code?: string }).code === 'ENOENT') {
-      await fs.promises.mkdir(LEGIT_BRANCH_ROOT, { recursive: true });
+      await fs.promises.mkdir(BRANCH_ROOT, { recursive: true });
       return [];
     }
     throw error;
@@ -67,38 +48,62 @@ export async function readJson<T>(path: string, defaultValue: T): Promise<T> {
 }
 
 export async function writeJson(path: string, data: unknown): Promise<void> {
-  const fs = await getLegitFs();
-  await fs.promises.writeFile(path, JSON.stringify(data), 'utf8');
+  try {
+    const fs = await getLegitFs();
+    await fs.promises.writeFile(path, JSON.stringify(data), 'utf8');
+  } catch (error) {
+    console.error('Error writing JSON to path:', path, error);
+    throw error;
+  }
 }
 
 export async function readHead(threadId: string): Promise<string> {
-  const fs = await getLegitFs();
-  const head = await fs.promises.readFile(
-    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/head`,
-    'utf8'
-  );
-  return head;
+  try {
+    const fs = await getLegitFs();
+    const head = await fs.promises.readFile(
+      `${BRANCH_ROOT}/${threadId}/.legit/head`,
+      'utf8'
+    );
+    return head;
+  } catch (error) {
+    console.error('Error reading head from path:', threadId, error);
+    throw error;
+  }
 }
 
 export async function writeOperation(
   threadId: string,
   content: string
 ): Promise<void> {
-  const fs = await getLegitFs();
-  await fs.promises.writeFile(
-    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/operation`,
-    content,
-    'utf8'
-  );
+  try {
+    const fs = await getLegitFs();
+    await fs.promises.writeFile(
+      `${BRANCH_ROOT}/${threadId}/.legit/operation`,
+      content,
+      'utf8'
+    );
+  } catch (error) {
+    console.error('Error writing operation to path:', threadId, error);
+    throw error;
+  }
 }
 
 export async function readOperationHistory(threadId): Promise<any> {
-  const fs = await getLegitFs();
-  const operationHistory = await fs.promises.readFile(
-    `${LEGIT_BRANCH_ROOT}/${threadId}/.legit/operationHistory`,
-    'utf8'
-  );
-  return operationHistory.length > 0
-    ? JSON.parse(operationHistory)
-    : JSON.parse('[]');
+  try {
+    const fs = await getLegitFs();
+    const operationHistory = await fs.promises.readFile(
+      `${BRANCH_ROOT}/${threadId}/.legit/operationHistory`,
+      'utf8'
+    );
+    return operationHistory.length > 0
+      ? JSON.parse(operationHistory)
+      : JSON.parse('[]');
+  } catch (error) {
+    console.error(
+      'Error reading operation history from path:',
+      threadId,
+      error
+    );
+    throw error;
+  }
 }

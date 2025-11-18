@@ -15,7 +15,6 @@ export class LegitThreads {
     _query?: AssistantCloudThreadsListQuery
   ): Promise<AssistantCloudThreadsListResponse> {
     const threads = await listBranches();
-    console.log('threads', threads);
 
     return {
       threads: threads.map(threadName => ({

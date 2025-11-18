@@ -5,10 +5,8 @@ import { AssistantSidebar } from '@/components/assistant-ui/assistant-sidebar';
 import { Form } from '@/components/ui/form';
 import { useAssistantForm } from '@assistant-ui/react-hook-form';
 import { useAssistantInstructions } from '@assistant-ui/react';
-import Link from 'next/link';
 import { useEffect } from 'react';
 import { useLegitFs } from '@/lib/legit-runtime';
-import { writeJson } from '@/lib/legit-runtime/storage';
 import { PencilIcon } from 'lucide-react';
 
 const SetFormFieldTool = props => {
@@ -54,18 +52,14 @@ export default function Home() {
   });
 
   const formValues = form.watch();
-
-  const saveFormValues = async (formValues: any) => {
-    const threadId = 'main';
-    const filePath = `/.legit/branches/${threadId}/form-values.json`;
-    await writeJson(filePath, formValues);
-  };
+  const { saveData } = useLegitFs();
 
   useEffect(() => {
-    if (form) {
-      saveFormValues(formValues);
-    }
-  }, [formValues]);
+    const saveFormValues = async () => {
+      await saveData('/form-values.json', JSON.stringify(formValues));
+    };
+    saveFormValues();
+  }, [formValues, saveData]);
 
   return (
     <div className="flex min-h-screen max-w-6xl mx-auto flex-col p-8 gap-4">

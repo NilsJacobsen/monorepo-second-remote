@@ -4,14 +4,14 @@ import { HistoryItem } from '@legit-sdk/core';
 import { FC, useEffect, useState } from 'react';
 
 const ChangesCard: FC = () => {
+  const messageId = useAssistantState(({ message }) => message.id);
   const mainBranchLastCommitId = useAssistantState(
     ({ message }) => message.metadata?.custom?.depending_on_commit_id
   );
   const parentOperationId = useAssistantState(
     ({ message }) => message.parentId
   );
-  const { legitFs } = useLegitFs();
-  const threadId = 'main';
+  const { legitFs, getMessageDiff, threadId } = useLegitFs();
   const [comparisonCommitId, setComparisonCommitId] = useState<
     string | undefined
   >(undefined);
@@ -43,6 +43,7 @@ const ChangesCard: FC = () => {
   };
 
   const logOperationHistory = async () => {
+    await getMessageDiff(messageId);
     try {
       const operationHistory = await legitFs.promises.readFile(
         `/.legit/branches/${threadId}/.legit/operationHistory`,
