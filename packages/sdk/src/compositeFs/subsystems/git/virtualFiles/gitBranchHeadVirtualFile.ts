@@ -107,6 +107,10 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
     cacheFs,
     pathParams,
   }) => {
+    console.log('gitBranchHeadVirtualFile writeFile called', {
+      pathParams,
+      content,
+    });
     if (pathParams.branchName === undefined) {
       throw new Error('branchName should be in pathParams');
     }
@@ -127,7 +131,7 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
     await git.writeRef({
       fs: nodeFs,
       dir: gitRoot,
-      ref: pathParams.branchName,
+      ref: 'refs/heads/' + pathParams.branchName,
       value: newHead,
       force: true,
     });
