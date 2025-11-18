@@ -20,7 +20,10 @@ export const AssistantSidebar: FC<PropsWithChildren> = ({ children }) => {
   }, []);
 
   const desktopLayout = (
-    <ResizablePanelGroup direction="horizontal">
+    <ResizablePanelGroup
+      direction="horizontal"
+      className="max-h-[calc(100vh-100px)]"
+    >
       <ResizablePanel>{children}</ResizablePanel>
       <ResizableHandle />
       <ResizablePanel>

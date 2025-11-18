@@ -23,8 +23,7 @@ export const createUIMessages = async (
             : operation.parentOids[0]!,
         metadata: {
           custom: {
-            parent_ids: operation.parentOids,
-            depending_on_commit_id: operation.parentOids[1] ?? null,
+            depending_branch_commit_id: operation.originBranchOid ?? null,
           },
         },
         ...cloudMessageWithoutId,

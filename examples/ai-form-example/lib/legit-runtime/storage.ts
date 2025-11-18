@@ -1,7 +1,7 @@
-import { initLegitFs } from '@legit-sdk/core';
+import { initLegitFs, Operation } from '@legit-sdk/core';
 import memfs from 'memfs';
 import { LegitFsInstance } from './types';
-import { BRANCH_ROOT } from './LegitFsProvider';
+import { BRANCH_ROOT, COMMIT_ROOT } from './LegitFsProvider';
 
 let legitFsPromise: Promise<LegitFsInstance> | null = null;
 
@@ -88,7 +88,9 @@ export async function writeOperation(
   }
 }
 
-export async function readOperationHistory(threadId): Promise<any> {
+export async function readOperationHistory(
+  threadId: string
+): Promise<Operation[]> {
   try {
     const fs = await getLegitFs();
     const operationHistory = await fs.promises.readFile(
@@ -104,6 +106,22 @@ export async function readOperationHistory(threadId): Promise<any> {
       threadId,
       error
     );
+    throw error;
+  }
+}
+
+export async function readPastState(
+  oid: string,
+  pathToFile: string
+): Promise<string> {
+  try {
+    if (pathToFile.startsWith('/')) pathToFile = pathToFile.slice(1);
+
+    const fs = await getLegitFs();
+    const path = `${COMMIT_ROOT}/${oid.slice(0, 2)}/${oid.slice(2)}/${pathToFile}`;
+    return await fs.promises.readFile(path, 'utf8');
+  } catch (error) {
+    console.error('Error reading past state from path:', oid, error);
     throw error;
   }
 }

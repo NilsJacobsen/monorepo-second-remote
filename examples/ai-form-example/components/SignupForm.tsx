@@ -1,5 +1,5 @@
-"use client";
-import { Button } from "@/components/ui/button";
+'use client';
+import { Button } from '@/components/ui/button';
 import {
   FormControl,
   FormDescription,
@@ -7,11 +7,11 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
-import { type FC, useState } from "react";
-import { useFormContext } from "react-hook-form";
-import { submitSignup } from "../lib/submitSignup";
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { type FC, useState } from 'react';
+import { useFormContext } from 'react-hook-form';
+import { submitSignup } from '../lib/submitSignup';
 
 export const SignupForm: FC = () => {
   const form = useFormContext();
@@ -41,7 +41,7 @@ export const SignupForm: FC = () => {
 
   return (
     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-      <input type="hidden" {...form.register("hidden")} />
+      <input type="hidden" {...form.register('hidden')} />
 
       <FormField
         control={form.control}
@@ -97,40 +97,6 @@ export const SignupForm: FC = () => {
             <FormDescription>The city and country you live in.</FormDescription>
             <FormControl>
               <Input placeholder="City" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="projectIdea"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Idea</FormLabel>
-            <FormDescription>
-              Do you have an idea for a project?
-            </FormDescription>
-            <FormControl>
-              <Input placeholder="Idea" {...field} />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="proficientTechnologies"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Technologies</FormLabel>
-            <FormDescription>
-              What technologies are you most comfortable with?
-            </FormDescription>
-            <FormControl>
-              <Input placeholder="Next.js, Tailwind CSS" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>

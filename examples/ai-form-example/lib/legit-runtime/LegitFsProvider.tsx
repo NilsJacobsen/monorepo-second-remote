@@ -11,10 +11,11 @@ import {
 } from 'react';
 
 import { type LegitFsInstance } from './types';
-import { getLegitFs, readOperationHistory } from './storage';
+import { getLegitFs, readOperationHistory, readPastState } from './storage';
 
 export const DEFAULT_THREAD_ID = 'main';
 export const BRANCH_ROOT = '/.legit/branches';
+export const COMMIT_ROOT = '/.legit/commits';
 
 const resolveThreadPath = (path: string): string => {
   if (path.startsWith('/')) {
@@ -28,7 +29,12 @@ type SaveDataFn = (
   data: Parameters<LegitFsInstance['promises']['writeFile']>[1]
 ) => Promise<void>;
 
-type GetMessageDiffFn = (messageId: string) => Promise<void>;
+type GetMessageDiffFn = (messageId: string) => Promise<{
+  newOid: string;
+  oldOid: string;
+}>;
+
+type GetPastStateFn = (oid: string, pathToFile: string) => Promise<string>;
 
 type LegitFsContextValue = {
   legitFs: LegitFsInstance | null;
@@ -36,6 +42,7 @@ type LegitFsContextValue = {
   error: Error | null;
   saveData: SaveDataFn;
   getMessageDiff: GetMessageDiffFn;
+  getPastState: GetPastStateFn;
   threadId: string;
   resolvePath: (path: string) => string;
 };
@@ -95,7 +102,37 @@ export function LegitFsProvider({ children }: { children: ReactNode }) {
   const getMessageDiff = useCallback<GetMessageDiffFn>(
     async messageId => {
       if (legitFs) {
-        console.log('getMessageDiff', messageId);
+        // get the operation history
+        const operationHistory = await readOperationHistory(DEFAULT_THREAD_ID);
+        if (!operationHistory) return;
+
+        // get the operation item and the last operation item
+        const operationItem = operationHistory.find(
+          item => item.oid === messageId
+        );
+        const lastOperationItem = operationHistory.find(
+          item => item.oid === operationItem?.parentOids[0]
+        );
+        if (!operationItem || !lastOperationItem) return;
+
+        // get the operation branch parent oid and the last operation branch parent oid
+        const operationBranchParentOid = operationItem?.parentOids[1];
+        const lastOperationBranchParentOid = lastOperationItem?.originBranchOid;
+        if (!operationBranchParentOid || !lastOperationBranchParentOid) return;
+
+        return {
+          newOid: operationBranchParentOid,
+          oldOid: lastOperationBranchParentOid,
+        };
+      }
+    },
+    [legitFs]
+  );
+
+  const getPastState = useCallback<GetPastStateFn>(
+    async (oid, pathToFile) => {
+      if (legitFs) {
+        return await readPastState(oid, pathToFile);
       }
     },
     [legitFs]
@@ -108,6 +145,7 @@ export function LegitFsProvider({ children }: { children: ReactNode }) {
       error,
       saveData,
       getMessageDiff,
+      getPastState,
       threadId: DEFAULT_THREAD_ID,
       resolvePath: resolveThreadPath,
     }),

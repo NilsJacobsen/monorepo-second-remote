@@ -23,7 +23,7 @@ const SetFormFieldTool = props => {
 const SubmitFormTool = () => {
   return (
     <p className="text-center font-mono text-sm font-bold text-blue-500">
-      submit_form(...)
+      Submitting the form...
     </p>
   );
 };
@@ -36,8 +36,6 @@ export default function Home() {
       lastName: '',
       email: '',
       cityAndCountry: '',
-      projectIdea: '',
-      proficientTechnologies: '',
     },
     assistant: {
       tools: {
