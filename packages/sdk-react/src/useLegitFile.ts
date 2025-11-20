@@ -35,6 +35,8 @@ export function useLegitFile(
 
     let isCancelled = false;
 
+    console.log('LOOOOAAADING');
+
     const load = async () => {
       setLoading(true);
       try {
@@ -42,30 +44,24 @@ export function useLegitFile(
         const historyPath = `/.legit/branches/${legitFs.defaultBranch}/.legit/history`;
 
         // Simple read with graceful error handling
-        const [textResult, historyResult] = await Promise.allSettled([
-          legitFs.promises.readFile(filePath, 'utf8'),
-          legitFs.promises.readFile(historyPath, 'utf8').catch(() => ''),
-        ]);
+        // const [textResult, historyResult] = await Promise.allSettled([
+        const textResult = await legitFs.promises.readFile(filePath, 'utf8');
+        const historyResult = await legitFs.promises
+          .readFile(historyPath, 'utf8')
+          .catch(() => '');
+        // ]);
 
         if (isCancelled) return;
 
         // Handle file content
-        const text =
-          textResult.status === 'fulfilled'
-            ? (textResult.value as string)
-            : null;
+        const text = textResult;
 
         // Handle history
         let parsedHistory: HistoryItem[] = [];
-        if (historyResult.status === 'fulfilled') {
-          try {
-            const historyContent = historyResult.value as string;
-            if (historyContent) {
-              parsedHistory = JSON.parse(historyContent);
-            }
-          } catch {
-            // Invalid JSON, keep empty array
-          }
+
+        const historyContent = historyResult as string;
+        if (historyContent) {
+          parsedHistory = JSON.parse(historyContent);
         }
 
         // Don't update if we have a pending save with the same content
@@ -158,6 +154,7 @@ export function useLegitFile(
   }, [loading, content, legitFs, options?.initialContent, save]);
 
   const getPastState = async (oid: string) => {
+    debugger;
     if (!legitFs) return '';
     try {
       // Remove leading slash from path for git commit file access

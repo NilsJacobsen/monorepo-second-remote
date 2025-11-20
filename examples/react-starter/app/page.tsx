@@ -196,7 +196,7 @@ function HistoryListItem({
 
 export default function Home() {
   return (
-    <LegitProvider>
+    <LegitProvider branch="main">
       <Editor />
     </LegitProvider>
   );
