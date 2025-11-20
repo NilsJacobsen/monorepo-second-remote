@@ -7,7 +7,7 @@
     "module": "ESNext",
     "resolveJsonModule": true,
     "noEmit": true,
-    "jsx": "preserve",
+    "jsx": "react-jsx",
     "lib": [
       "dom",
       "dom.iterable",
@@ -50,7 +50,9 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "eslint.config.mjs",
+    ".next/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"
