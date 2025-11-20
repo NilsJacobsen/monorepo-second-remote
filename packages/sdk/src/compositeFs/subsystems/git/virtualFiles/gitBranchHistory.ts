@@ -41,7 +41,7 @@ export const gitBranchHistory: VirtualFileDefinition = {
     // TODO use the head information of the commit
     return {
       mode: 0o644,
-      size: 10000,
+      size: 100000,
       isFile: () => true,
       isDirectory: () => false,
       isSymbolicLink: () => false,
