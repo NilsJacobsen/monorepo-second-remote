@@ -233,12 +233,6 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         pathParams.branchName
       );
 
-      let refbranchCommit = await tryResolveRef(
-        nodeFs,
-        gitRoot,
-        'refs/heads/' + pathParams.branchName
-      );
-
       if (!branchCommit) {
         // Get the current branch/HEAD to use as base for new branch
         const currentHead = await git.resolveRef({
@@ -260,7 +254,6 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
           dir: gitRoot,
         });
       }
-
       const fileOrFolder = await resolveGitObjAtPath({
         filePath,
         gitRoot,
@@ -268,6 +261,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         commitSha: branchCommit,
         pathParams,
       });
+
       if (!fileOrFolder) {
         return undefined;
       }

@@ -175,11 +175,11 @@ export class PassThroughToAsyncFsSubFs
 
     const fileHandle = this.openFh.get(fh.subFsFileDescriptor);
     if (fileHandle) {
-      await fileHandle.close();
       this.openFh.delete(fh.subFsFileDescriptor);
+      await fileHandle.close();
     }
 
-    this.compositFs.close(fh);
+    await this.compositFs.close(fh);
   }
 
   override async dataSync(fh: CompositFsFileHandle): Promise<void> {
