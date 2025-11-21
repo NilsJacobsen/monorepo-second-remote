@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  // "extends": "@tsconfig/strictest/tsconfig.json", // Removed due to file not found error
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "target": "ESNext",
+    "module": "ESNext",
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "ES2023"
+    ],
+    "stripInternal": true,
+    "paths": {
+      "@/*": [
+        "./*"
+      ],
+      "@assistant-ui/*": [
+        "../../packages/*/src"
+      ],
+      "@assistant-ui/react/*": [
+        "../../packages/react/src/*"
+      ],
+      "@assistant-ui/tap/*": [
+        "../../packages/tap/src/*"
+      ],
+      "assistant-stream": [
+        "../../packages/assistant-stream/src"
+      ],
+      "assistant-stream/*": [
+        "../../packages/assistant-stream/src/*"
+      ]
+    },
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "incremental": true,
+    "esModuleInterop": true,
+    "isolatedModules": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "eslint.config.mjs",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}
