@@ -520,6 +520,10 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     if (!openFh) {
       throw new Error('Invalid file handle');
     }
+    openFh.unflushed.push({
+      length: 0,
+      start: 0,
+    });
     return await openFh.fh.truncate(len);
   }
 
