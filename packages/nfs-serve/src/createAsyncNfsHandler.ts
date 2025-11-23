@@ -1075,22 +1075,23 @@ export const createAsyncNfsHandler = (args: {
       }
 
       let fsHandle = nfsHandle.fsHandle.fh;
+      const filePath = fileHandleManager.getPathFromHandle(handle)!;
+      // if (fsHandle === undefined) {
+      //   const path = fileHandleManager.getPathFromHandle(handle)!;
+      //   fsHandle = await asyncFs.open(path, 'r');
+      // }
 
-      if (fsHandle === undefined) {
-        const path = fileHandleManager.getPathFromHandle(handle)!;
-        fsHandle = await asyncFs.open(path, 'r');
-      }
-
-      if (!fsHandle) {
-        console.error(`Invalid file handle: ${handle.toString('hex')}`);
-        return {
-          status: nfsstat3.ERR_STALE,
-        };
-      }
+      // if (!fsHandle) {
+      //   console.error(`Invalid file handle: ${handle.toString('hex')}`);
+      //   return {
+      //     status: nfsstat3.ERR_STALE,
+      //   };
+      // }
 
       // Check if the file exists
       try {
-        const stats = await fsHandle.stat();
+        const stats = await asyncFs.stat(filePath);
+
         return {
           status: nfsstat3.OK,
           stats: toStatWithFileId(stats, handle),
