@@ -34,7 +34,7 @@ export type FileHandleDelegate = {
   /**
    * @returns a unique number per subfs
    */
-  close: (fh: CompositFsFileHandle) => void;
+  close: (fh: CompositFsFileHandle) => Promise<void>;
   dataSync: (fh: CompositFsFileHandle) => Promise<void>;
   read: (
     fh: CompositFsFileHandle,

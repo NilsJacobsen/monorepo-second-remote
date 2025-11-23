@@ -110,6 +110,7 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
 
     const filehandle = new CompositFsFileHandle({
       fs: this,
+      compositeFs: this.compositFs,
       subFsFileDescriptor: fh.fd,
       parentFsFileDescriptors: [fh.fd],
     });

@@ -546,6 +546,26 @@ describe('openLegitFs', () => {
     expect(stillCurrentHead).toBe(validHead);
   });
 
+  it('truncate and write file', async () => {
+    const filePath = `${repoPath}/.legit/branches/main/test.txt`;
+    
+
+    // Get current valid head
+     await legitfs.promises.writeFile(filePath, 'content');
+    
+     const fsHandle = await legitfs.promises.open(filePath, 'a+');
+
+     const statsBefore = await fsHandle.stat();
+
+     await fsHandle.truncate(Number(0))
+
+     const fsHandle2 = await legitfs.promises.open(filePath, 'a+');
+
+     const statsAfter = await fsHandle.stat();
+
+    expect(statsBefore).toBe(statsAfter);
+  });
+
   it.todo('should read files from previous commit');
   it.todo('should list files from previous commit');
   it.todo('should handle branch creation and switching');

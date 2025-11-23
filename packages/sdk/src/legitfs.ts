@@ -93,9 +93,9 @@ export function openLegitFs(
   });
 
   const gitSubFs = new GitSubFs({
-    // while the git subfs is a subFs of the userSpaceFs - it operates on the rootFs to be able to read and write the .git folder
-    parentFs: rootFs,
+    parentFs: userSpaceFs,
     gitRoot: gitRoot,
+    gitStorageFs: rootFs,
   });
 
   const gitFsHiddenFs = new HiddenFileSubFs({

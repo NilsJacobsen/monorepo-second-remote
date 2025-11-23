@@ -8,13 +8,14 @@ import {
   TFileHandleWritevResult,
   TMode,
   TTime,
-} from "memfs/lib/node/types/misc.js";
+} from 'memfs/lib/node/types/misc.js';
 import {
   IAppendFileOptions,
   IReadableWebStreamOptions,
   IStatOptions,
-} from "memfs/lib/node/types/options.js";
-import { CompositeSubFs, FileHandleDelegate } from "./CompositeSubFs.js";
+} from 'memfs/lib/node/types/options.js';
+import { CompositeSubFs, FileHandleDelegate } from './CompositeSubFs.js';
+import { CompositeFs } from './CompositeFs.js';
 
 export interface ICompositFsFileHandle {
   subFsFileDescriptor: number;
@@ -30,11 +31,11 @@ export interface ICompositFsFileHandle {
     buffer: Buffer | Uint8Array,
     offset: number,
     length: number,
-    position: number,
+    position: number
   ): Promise<TFileHandleReadResult>;
   readv(
     buffers: ArrayBufferView[],
-    position?: number | null,
+    position?: number | null
   ): Promise<TFileHandleReadvResult>;
   // readFile(options?: IReadFileOptions | string): Promise<TDataOut>;
   stat(options?: IStatOptions): Promise<IStats>;
@@ -44,11 +45,11 @@ export interface ICompositFsFileHandle {
     buffer: Buffer | ArrayBufferView | DataView,
     offset?: number,
     length?: number,
-    position?: number,
+    position?: number
   ): Promise<TFileHandleWriteResult>;
   writev(
     buffers: ArrayBufferView[],
-    position?: number | null,
+    position?: number | null
   ): Promise<TFileHandleWritevResult>;
   // writeFile(data: TData, options?: IWriteFileOptions): Promise<void>;
   sync(): Promise<void>;
@@ -59,7 +60,8 @@ export interface ICompositFsFileHandle {
  * wrap the filehandle in a SubFsFileHandle and forward all operations to there origin filesystem
  */
 export default class CompositFsFileHandle implements ICompositFsFileHandle {
-  private delegate: FileHandleDelegate;
+  delegate: FileHandleDelegate;
+  private compositeFs: CompositeFs;
 
   get fsType() {
     return this.delegate.fileType();
@@ -73,12 +75,11 @@ export default class CompositFsFileHandle implements ICompositFsFileHandle {
   // the filedescriptor from the sub fs
   private _subFsFileDescriptor: number;
 
-
   get subFsFileDescriptor(): number {
     return this._subFsFileDescriptor;
   }
 
-  handleType = "file";
+  handleType = 'file';
 
   private _compositFsFileDescriptor: number = -1;
   get fd(): number {
@@ -87,33 +88,33 @@ export default class CompositFsFileHandle implements ICompositFsFileHandle {
 
   realize(compositeFd: number) {
     if (this._compositFsFileDescriptor !== -1) {
-      throw new Error("was already realized");
+      throw new Error('was already realized');
     }
     this._compositFsFileDescriptor = compositeFd;
   }
 
   constructor(args: {
     fs: FileHandleDelegate;
+    compositeFs: CompositeFs;
     subFsFileDescriptor: number;
     parentFsFileDescriptors: number[];
   }) {
     this.delegate = args.fs;
     this._subFsFileDescriptor = args.subFsFileDescriptor;
     this._compositFsFileDescriptor = -1;
-
-    let typeNumber = args.fs.fileType();
+    this.compositeFs = args.compositeFs;
 
     // Write the fd in the last 4 bytes (offset 60)
     const fd = this._subFsFileDescriptor; // number // Big-endian, or use LE if you prefer
   }
 
   readableWebStream(options?: IReadableWebStreamOptions): ReadableStream {
-    throw new Error("Method not implemented.");
+    throw new Error('Method not implemented.');
   }
 
   async appendFile(
     data: TData,
-    options?: IAppendFileOptions | string,
+    options?: IAppendFileOptions | string
   ): Promise<void> {
     return await this.delegate.appendFile(this, data, options);
   }
@@ -127,7 +128,7 @@ export default class CompositFsFileHandle implements ICompositFsFileHandle {
   }
 
   async close(): Promise<void> {
-    return this.delegate.close(this);
+    return this.compositeFs.close(this);
   }
 
   async datasync(): Promise<void> {
@@ -138,14 +139,14 @@ export default class CompositFsFileHandle implements ICompositFsFileHandle {
     buffer: Buffer | Uint8Array,
     offset: number,
     length: number,
-    position: number,
+    position: number
   ): Promise<TFileHandleReadResult> {
     return await this.delegate.read(this, buffer, offset, length, position);
   }
 
   readv(
     buffers: ArrayBufferView[],
-    position?: number | null,
+    position?: number | null
   ): Promise<TFileHandleReadvResult> {
     return this.delegate.readv(this, buffers, position);
   }
@@ -165,13 +166,13 @@ export default class CompositFsFileHandle implements ICompositFsFileHandle {
     buffer: Buffer | ArrayBufferView | DataView,
     offset?: number,
     length?: number,
-    position?: number,
+    position?: number
   ): Promise<TFileHandleWriteResult> {
     return this.delegate.write(this, buffer, offset, length, position);
   }
   async writev(
     buffers: ArrayBufferView[],
-    position?: number | null,
+    position?: number | null
   ): Promise<TFileHandleWritevResult> {
     return this.delegate.writev(this, buffers, position);
   }

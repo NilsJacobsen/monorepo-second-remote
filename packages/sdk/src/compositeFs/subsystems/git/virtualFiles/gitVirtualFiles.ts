@@ -27,7 +27,7 @@ export type VirtualFile =
 export interface VirtualFileArgs {
   cacheFs: IFs;
   filePath: string;
-  fs: CompositeFs;
+  // fs: CompositeFs;
   gitRoot: string;
   nodeFs?: any; // The actual node fs for git operations
   pathParams: any; // Parameters extracted from the router

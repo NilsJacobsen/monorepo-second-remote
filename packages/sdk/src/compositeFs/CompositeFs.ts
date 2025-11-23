@@ -349,6 +349,7 @@ export class CompositeFs {
   }
 
   async close(fh: CompositFsFileHandle): Promise<void> {
+    await fh.delegate.close(fh);
     for (const [filePath, handles] of this.pathToFileDescriptors.entries()) {
       const index = handles.indexOf(fh.fd);
       if (index !== -1) {
@@ -359,6 +360,7 @@ export class CompositeFs {
         break;
       }
     }
+    this.openFileHandles.delete(fh.fd);
   }
 
   async stat(
