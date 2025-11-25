@@ -395,25 +395,50 @@ export async function buildUpdatedTree({
             newEntries[idx] = treeEntry;
           } else {
             newEntries.push(treeEntry);
+            if (deleteKeepIfNotEmpty && newEntries.length > 1) {
+              const keepIdx = newEntries.findIndex(
+                e => e.path === keepFilename
+              );
+              if (keepIdx !== -1) {
+                newEntries.splice(keepIdx, 1);
+              }
+            }
           }
         }
       } else {
         updated = true;
-        const treeEntry = {
-          mode: addObj!.type === 'tree' ? '040000' : '100644', // mode for file
-          path: currentPathPartAdded,
-          oid: addObj!.oid,
-          type: addObj!.type,
-        };
-        if (idx !== -1) {
-          newEntries[idx] = treeEntry;
-        } else {
-          if (deleteKeepIfNotEmpty) {
-            const keepIdx = newEntries.findIndex(e => e.path === keepFilename);
-            newEntries.splice(keepIdx, 1);
+        if (addObj) {
+          const treeEntry = {
+            mode: addObj!.type === 'tree' ? '040000' : '100644', // mode for file
+            path: currentPathPartAdded,
+            oid: addObj!.oid,
+            type: addObj!.type,
+          };
+          if (idx !== -1) {
+            newEntries[idx] = treeEntry;
+          } else {
+            if (deleteKeepIfNotEmpty && newEntries.length > 0) {
+              const keepIdx = newEntries.findIndex(
+                e => e.path === keepFilename
+              );
+              
+              if (keepIdx !== -1) {
+                newEntries.splice(keepIdx, 1);
+              }
+            }
+            newEntries.push(treeEntry);
           }
+        }
 
-          newEntries.push(treeEntry);
+        if (addKeepIfEmpty && newEntries.length === 0) {
+          const emptyBlob = new Uint8Array(0);
+          const keepOid = await git.writeBlob({ fs, dir, blob: emptyBlob });
+          newEntries.push({
+            mode: '100644',
+            oid: keepOid,
+            path: keepFilename,
+            type: 'blob',
+          });
         }
       }
     }

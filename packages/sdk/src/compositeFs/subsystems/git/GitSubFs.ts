@@ -453,7 +453,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const parts = pathStr.split('/');
       let current = '';
       for (let i = 1; i <= parts.length; i++) {
-        current = '/' + parts.slice(0, i).join('/');
+        current = parts.slice(0, i).join('/');
         // Only create if not already open and is a directory
         try {
           const stats = await this.memFs.promises.stat(current);
@@ -1171,7 +1171,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         pathParams: parsed.params,
       });
       for (const [fd, fh] of Object.entries(this.openFh)) {
-        if (fh.path === pathStr) {
+        if (fh.path === '/' + pathStr) {
           await fh.fh.close();
           await this.memFs.promises.unlink(pathStr);
           delete this.openFh[Number(fd)];
@@ -1179,6 +1179,33 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       }
     } else {
       throw new Error(`Cannot unlink ${parsed?.handler.type} files`);
+    }
+  }
+
+  override async rmdir(path: PathLike, ...args: any[]): Promise<void> {
+    const pathStr = path.toString();
+
+    const parsed = this.getRouteHandler(pathStr);
+
+    if (parsed?.handler.rmdir !== undefined) {
+      await parsed.handler.rmdir({
+        cacheFs: this.memFs,
+        filePath: pathStr,
+        // fs: this.compositFs,
+        nodeFs: this.storageFs,
+        gitRoot: this.gitRoot,
+        pathParams: parsed.params,
+      });
+      for (const [fd, fh] of Object.entries(this.openFh)) {
+        if (fh.path === pathStr) {
+          await fh.fh.close();
+          await this.memFs.promises.rmdir(pathStr, { recursive: true });
+          delete this.openFh[Number(fd)];
+        }
+      }
+    } else {
+      throw new Error(`Cannot rmdir 
+       ${parsed?.handler.type} directories`);
     }
   }
 

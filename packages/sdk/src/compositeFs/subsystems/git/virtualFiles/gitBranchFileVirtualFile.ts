@@ -525,8 +525,6 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       oid: branchCommit,
     });
 
-    const filepathParts = pathParams.filePath.split('/');
-
     const newTreeOid = await buildUpdatedTree({
       dir: gitRoot,
       fs: nodeFs,
@@ -704,6 +702,15 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null;
     }
   ): Promise<void> {
+    // Parse the path to get branch name and file path
+    if (args.pathParams.branchName === undefined) {
+      throw new Error('branchName should be in pathParams');
+    }
+
+    if (args.pathParams.filePath === undefined) {
+      throw new Error('filePath should be in pathParams');
+    }
+
     try {
       await gitBranchFileVirtualFile.getStats(args);
       throw new Error('Folder exists');
@@ -719,20 +726,151 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       args.pathParams.filePath = args.pathParams.filePath.replace(/\/+$/, '');
     }
 
-    // TODO replace with build updated tree function
+    let branchCommit = await tryResolveRef(
+      args.nodeFs,
+      args.gitRoot,
+      args.pathParams.branchName
+    );
 
-    const createFileArgs = {
-      ...args,
-      filePath: (args.filePath += '.keep'),
-      content: '',
-    };
+    if (!branchCommit) {
+      // Get the current branch/HEAD to use as base for new branch
+      const currentHead = await git.resolveRef({
+        fs: args.nodeFs,
+        dir: args.gitRoot,
+        ref: 'HEAD',
+      });
 
-    createFileArgs.pathParams.filePath += '/.keep';
+      // Create branch if it doesn't exist
+      await git.branch({
+        fs: args.nodeFs,
+        dir: args.gitRoot,
+        ref: args.pathParams.branchName,
+        object: currentHead,
+      });
+      branchCommit = await git.resolveRef({
+        fs: args.nodeFs,
+        dir: args.gitRoot,
+        ref: `refs/heads/${args.pathParams.branchName}`,
+      });
+    }
 
-    await gitBranchFileVirtualFile.writeFile!(createFileArgs);
+    // read tree also accepts a git commit - it will resolve the tree within the commit
+    const currentTree = await git.readTree({
+      fs: args.nodeFs,
+      dir: args.gitRoot,
+      oid: branchCommit,
+    });
+
+    const emptyBlob = new Uint8Array(0);
+    const keepOid = await git.writeBlob({
+      fs: args.nodeFs,
+      dir: args.gitRoot,
+      blob: emptyBlob,
+    });
+
+    const newTreeOid = await buildUpdatedTree({
+      dir: args.gitRoot,
+      fs: args.nodeFs,
+      treeOid: currentTree.oid,
+      deletePathParts: undefined,
+      addPathParts: [...args.pathParams.filePath.split('/'), '.keep'],
+      addObj: {
+        type: 'blob',
+        oid: keepOid,
+      },
+      deleteKeepIfNotEmpty: true,
+      addKeepIfEmpty: true,
+      keepFilename: '.keep',
+    });
+
+    if (newTreeOid !== currentTree.oid) {
+      // Step 5: Create a new commit
+      const newCommitOid = await git.commit({
+        fs: args.nodeFs,
+        dir: args.gitRoot,
+        message: `💾 Change '${args.pathParams.filePath}'`,
+        tree: newTreeOid,
+        noUpdateBranch: true,
+        parent: [branchCommit],
+        author: {
+          name: 'GitLegitFs',
+          email: 'gitlegit@example.com',
+          timestamp: Math.floor(Date.now() / 1000),
+          timezoneOffset: 0,
+        },
+      });
+
+      // Update the branch reference
+      await git.writeRef({
+        fs: args.nodeFs,
+        dir: args.gitRoot,
+        ref: `refs/heads/${args.pathParams.branchName}`,
+        value: newCommitOid,
+        force: true,
+      });
+    }
   },
 
-  // rmdir: async (path: PathLike, ...args: any[]): Promise<void> => {
-  //   throw new Error(`rmdir not implemented for: ${this.toStr(path)}`);
-  // }
+  rmdir: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
+    if (!pathParams.branchName) {
+      throw new Error('branchName should be in pathParams');
+    }
+
+    if (!pathParams.filePath) {
+      throw new Error('filePath should be in pathParams');
+    }
+    // Get current branch commit
+    const branchCommit = await git.resolveRef({
+      fs: nodeFs,
+      dir: gitRoot,
+      ref: pathParams.branchName,
+    });
+
+    // Read current tree
+    const currentTree = await git.readTree({
+      fs: nodeFs,
+      dir: gitRoot,
+      oid: branchCommit,
+    });
+
+    // Build new tree without the file
+    const newTreeOid = await buildUpdatedTree({
+      dir: gitRoot,
+      fs: nodeFs,
+      treeOid: currentTree.oid,
+      deletePathParts: pathParams.filePath.split('/'),
+      addPathParts: undefined,
+      addObj: undefined,
+      deleteKeepIfNotEmpty: false,
+      addKeepIfEmpty: true,
+      keepFilename: '.keep',
+    });
+
+    // Create commit if tree changed
+    if (newTreeOid !== currentTree.oid) {
+      const newCommitOid = await git.commit({
+        fs: nodeFs,
+        dir: gitRoot,
+        message: `Delete ${pathParams.filePath}`,
+        tree: newTreeOid,
+        noUpdateBranch: true,
+        parent: [branchCommit],
+        author: {
+          name: 'GitLegitFs',
+          email: 'gitlegit@example.com',
+          timestamp: Math.floor(Date.now() / 1000),
+          timezoneOffset: 0,
+        },
+      });
+
+      // Update branch reference
+      await git.writeRef({
+        fs: nodeFs,
+        dir: gitRoot,
+        ref: `refs/heads/${pathParams.branchName}`,
+        value: newCommitOid,
+        force: true,
+      });
+    }
+  },
 };

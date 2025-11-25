@@ -51,6 +51,7 @@ export type VirtualFileDefinition = {
       options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null;
     }
   ) => Promise<void>;
+  rmdir?: (args: VirtualFileArgs) => Promise<void>;
 };
 
 export const allGitVirtualFiles: VirtualFileDefinition[] = [
