@@ -92,7 +92,6 @@ export const LegitProvider = ({
 
     try {
       // TODO: Implement setBranch method on legitFs instance
-      // await legitFsRef.current.setBranch(newBranch);
       console.log('Setting branch to:', newBranch);
       setBranch(newBranch);
       setLoading(false);
@@ -102,6 +101,7 @@ export const LegitProvider = ({
     }
   };
 
+  // TODO: enable rollback for operations as well
   const handleRollback = async (commitHash: string) => {
     if (!legitFs) {
       console.error('No legitFs instance available');
