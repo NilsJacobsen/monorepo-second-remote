@@ -13,52 +13,78 @@ import { initLegitFs, openLegitFs } from '@legit-sdk/core'; // your SDK import
 import fs from 'memfs'; // in-memory FS for demo
 
 import { createLegitSyncService } from '@legit-sdk/core';
-import { _ } from 'vitest/dist/chunks/reporters.d.BFLkQcL6';
 
 export interface LegitContextValue {
   legitFs: Awaited<ReturnType<typeof initLegitFs>> | null;
   loading: boolean;
+  syncing: boolean;
   head: string | null;
   branch: string | null;
   setBranch: (branch: string) => Promise<void>;
+  startSync: () => Promise<void>;
+  stopSync: () => Promise<void>;
+  rollback: (commitHash: string) => Promise<void>;
   error?: Error;
 }
 
 const LegitContext = createContext<LegitContextValue>({
   legitFs: null,
   loading: true,
+  syncing: false,
   head: null,
   branch: null,
   setBranch: async () => {},
+  startSync: async () => {},
+  stopSync: async () => {},
+  rollback: async () => {},
 });
 
 export const useLegitContext = () => useContext(LegitContext);
 
 export interface LegitProviderProps {
   children: ReactNode;
-  branch?: string;
+  config?: LegitConfig;
+  getSyncToken?: GetSyncToken;
 }
+
+export type LegitConfig = {
+  initialBranch?: string;
+  sync?: {
+    serverUrl: string; // hub.legitcontrol.com
+    gitRepoPath: string;
+  };
+};
+
+const defaultConfig: LegitConfig = {};
+
+export type GetSyncToken = {
+  (legitFs?: Awaited<ReturnType<typeof initLegitFs>>): Promise<string>;
+};
 
 const DEFAULT_POLL_INTERVAL = 100; // Increased from 200ms to reduce polling frequency
 
 export const LegitProvider = ({
   children,
-  branch: initialBranch,
+  config = defaultConfig,
+  getSyncToken,
 }: LegitProviderProps) => {
   const [legitFs, setLegitFs] = useState<Awaited<
     ReturnType<typeof initLegitFs>
   > | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | undefined>();
-  const [head, setHead] = useState<string | null>(null);
-  const [branch, setBranch] = useState<string | null>(initialBranch || null);
-  const headRef = useRef<string | null>(null);
   const legitFsRef = useRef<Awaited<ReturnType<typeof initLegitFs>> | null>(
     null
   );
+  const headRef = useRef<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [error, setError] = useState<Error | undefined>();
+  const [head, setHead] = useState<string | null>(null);
+  const [branch, setBranch] = useState<string | null>(
+    config.initialBranch || null
+  );
 
   const handleSetBranch = async (newBranch: string) => {
-    if (!legitFsRef.current) {
+    if (!legitFs) {
       console.error('No legitFs instance available');
       return;
     }
@@ -68,7 +94,6 @@ export const LegitProvider = ({
 
     try {
       // TODO: Implement setBranch method on legitFs instance
-      // await legitFsRef.current.setBranch(newBranch);
       console.log('Setting branch to:', newBranch);
       setBranch(newBranch);
       setLoading(false);
@@ -78,25 +103,49 @@ export const LegitProvider = ({
     }
   };
 
+  // TODO: enable rollback for operations as well
+  const handleRollback = async (commitHash: string) => {
+    if (!legitFs) {
+      console.error('No legitFs instance available');
+      return;
+    }
+    try {
+      await legitFs.promises.writeFile(
+        `/.legit/branches/${branch}/.legit/head`,
+        commitHash,
+        'utf8'
+      );
+    } catch (err) {
+      setError(err as Error);
+    }
+  };
+
   useEffect(() => {
     let isMounted = true;
     let pollHead: NodeJS.Timeout | undefined;
     let lastSeenHead = '';
 
     const initFs = async (branchName?: string) => {
-      const token =
-        'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJncyI6ImJOVC96NG1sWWZKR1BMTm5iZ0RmQ0huZmRiVWE2cWt5OHFGZFl2TCsvRTlydmh0ajRpWDhJWUlDMzBYZnpybFNuQTZuT1N6WDVqaWN1eW8wbCtaeEJpUDJpS1o3N0MrMVgyY0tXcjcwYVovam5pRFZMSHYvTTRtK0VmQS92MEpac09FbHVNQ0dsdVZ5OXZIZk11bHBXbFNFVGxia1ZiL0R5SnlEaWRQU1Rhb0dUeFhrek4yZHlLcW16MWJ1MmkxU2IyZUlxb3RaTk1OL2NiRnpTWi9IbURURDZDTXNVZkp0UnplNk0xRWM5S1VRQzZZUGNiYWJrTnkrU01weW9mZTVpb2IxMGdqNkpQK2pncXJYU1N3eWZSTzdtcU0wL0dRbjdRUktqdXhnTEtTWk51YlVnVDc3VGRYMkRBNUZkN1hHUUo0M1BrVWxuUFUvaEQ3K2szM0Vydz09IiwicnAiOiJMZWdpdC1Db250cm9sL3N0YXJ0ZXItc3luYyIsImJ3IjpbIm1haW4iXSwiaWF0IjoxNzYzNTg2ODYyfQ.dOOpCxzQlXyzpuKgcaLSRrqC1PJ9tySbkhe1pVD6dcGIdEN-iX5ZDPiO3p5xf9XHe5SXRdk5rVqJFXVfzf4sC3xy4e85tMFkPtFHjeKGGhZFtzyzGX0dniHuBxIPHy-hlxjsOgiFU-Jzpoa77Grn-1WMpl_GQCBwL_MNrUI2ZiuI6ruozHCfe_kzpLFzbqA5EqJkGJGnyPYty1CjAcqoZnK7aJ8VgRVzpqsmiwPkTklqluodYIY5xSxpYNzZkPwH1Zf3yFysigU3Ir0q-WiHu01g21UCW54YJRPB6LFkvf8a3nYOAk1_axSWqewyjy-8vqMRWJrDH-ttH_USnc2utg';
-      const syncService = createLegitSyncService({
-        fs: fs as any,
-        gitRepoPath: '/',
-        serverUrl: 'http://localhost:9992',
-        // repoUrl: 'https://monorepo-o36x.onrender.com/Legit-Control/starter-sync.git',
-        token,
-      });
+      const token = getSyncToken ? await getSyncToken() : undefined;
+
+      if (config.sync && !token)
+        throw new Error('getSyncToken is required when sync is enabled');
+      debugger;
+      const syncService =
+        config.sync && token
+          ? createLegitSyncService({
+              fs: fs as any,
+              gitRepoPath: config.sync!.gitRepoPath, // will not run if not sync ready
+              serverUrl: config.sync!.serverUrl, // will not run if not sync ready
+              token: token!, // will throw if token is undefined
+            })
+          : undefined;
 
       if (branchName) {
         try {
-          await syncService.clone(token, branchName);
+          if (syncService && token) {
+            await syncService.clone(token, branchName);
+          }
           const _legitFs = await openLegitFs(
             fs as unknown as typeof import('node:fs'),
             '/',
@@ -114,9 +163,11 @@ export const LegitProvider = ({
           }
         }
       } else {
+        // generating BranchID
         const randomId = Math.floor(Math.random() * 1000000) + 1;
         let mainBranch = randomId.toString();
         console.log('Initializing with branch:', mainBranch);
+
         try {
           const _legitFs = await initLegitFs(
             fs as unknown as typeof import('node:fs'),
@@ -130,8 +181,6 @@ export const LegitProvider = ({
           setLegitFs(_legitFs);
           setBranch(mainBranch);
           setLoading(false);
-
-          // Setup HEAD polling - simple and straightforward
         } catch (err) {
           if (isMounted) {
             setError(err as Error);
@@ -140,13 +189,24 @@ export const LegitProvider = ({
         }
       }
 
-      // @ts-ignore
-      window.legitFs = legitFsRef.current;
-      syncService.start();
-      const _legitFs = legitFsRef.current;
+      // set window.legitFs for debugging
+      if (typeof window !== 'undefined') {
+        (window as any).legitFs = legitFsRef.current;
+      }
+
+      // start syncing
+      if (syncService) {
+        syncService.start();
+        setSyncing(true);
+      } else {
+        setSyncing(false);
+      }
+
       let isRunning = false;
-      if (_legitFs) {
+      if ((legitFs || legitFsRef.current) && branch) {
         pollHead = setInterval(async () => {
+          const _legitFs = legitFs || legitFsRef.current;
+          if (!_legitFs) return;
           if (isRunning) {
             console.log('Skipping poll - previous still running');
             return;
@@ -175,23 +235,27 @@ export const LegitProvider = ({
       }
     };
 
-    initFs(initialBranch);
+    initFs(branch ?? config.initialBranch);
 
     return () => {
       isMounted = false;
       if (pollHead) clearInterval(pollHead);
     };
-  }, [initialBranch]);
+  }, [config.initialBranch, branch]);
 
   return (
     <LegitContext.Provider
       value={{
         legitFs,
         loading,
+        syncing,
         head,
         branch,
         setBranch: handleSetBranch,
+        rollback: handleRollback,
         error,
+        startSync: async () => {},
+        stopSync: async () => {},
       }}
     >
       {children}
