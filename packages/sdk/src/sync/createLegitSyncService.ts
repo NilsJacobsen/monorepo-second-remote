@@ -153,6 +153,9 @@ export const createLegitSyncService = ({
       }
     }
 
+    // TODO this filters any brounc with anonymous - need a better way to handle this
+    unpushedRefs = unpushedRefs.filter(v => v.indexOf('anonymous') === -1);
+
     if (unpushedRefs.length === 0) {
       return;
     } else {

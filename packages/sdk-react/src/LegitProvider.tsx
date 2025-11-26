@@ -9,13 +9,13 @@ import {
   ReactNode,
   useRef,
 } from 'react';
-import { initLegitFs, openLegitFs } from '@legit-sdk/core'; // your SDK import
+import { openLegitFs } from '@legit-sdk/core'; // your SDK import
 import fs from 'memfs'; // in-memory FS for demo
 
 import { createLegitSyncService } from '@legit-sdk/core';
 
 export interface LegitContextValue {
-  legitFs: Awaited<ReturnType<typeof initLegitFs>> | null;
+  legitFs: Awaited<ReturnType<typeof openLegitFs>> | null;
   loading: boolean;
   syncing: boolean;
   head: string | null;
@@ -58,7 +58,7 @@ export type LegitConfig = {
 const defaultConfig: LegitConfig = {};
 
 export type GetSyncToken = {
-  (legitFs?: Awaited<ReturnType<typeof initLegitFs>>): Promise<string>;
+  (legitFs?: Awaited<ReturnType<typeof openLegitFs>>): Promise<string>;
 };
 
 const DEFAULT_POLL_INTERVAL = 100; // Increased from 200ms to reduce polling frequency
@@ -69,11 +69,9 @@ export const LegitProvider = ({
   getSyncToken,
 }: LegitProviderProps) => {
   const [legitFs, setLegitFs] = useState<Awaited<
-    ReturnType<typeof initLegitFs>
+    ReturnType<typeof openLegitFs>
   > | null>(null);
-  const legitFsRef = useRef<Awaited<ReturnType<typeof initLegitFs>> | null>(
-    null
-  );
+
   const headRef = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
@@ -141,71 +139,38 @@ export const LegitProvider = ({
             })
           : undefined;
 
-      if (branchName) {
-        try {
-          if (syncService && token) {
-            await syncService.clone(token, branchName);
-          }
-          const _legitFs = await openLegitFs(
-            fs as unknown as typeof import('node:fs'),
-            '/',
-            branchName
-          );
+      try {
+        const _legitFs = await openLegitFs(
+          fs as unknown as typeof import('node:fs'),
+          '/',
+          branchName
+        );
 
-          legitFsRef.current = _legitFs;
-          setLegitFs(_legitFs);
+        if (branchName) {
+          await _legitFs.setCurrentBranch(branchName);
           setBranch(branchName);
-          setLoading(false);
-        } catch (err) {
-          if (isMounted) {
-            setError(err as Error);
-            setLoading(false);
-          }
         }
-      } else {
-        // generating BranchID
-        const randomId = Math.floor(Math.random() * 1000000) + 1;
-        let mainBranch = randomId.toString();
-        console.log('Initializing with branch:', mainBranch);
-
-        try {
-          const _legitFs = await initLegitFs(
-            fs as unknown as typeof import('node:fs'),
-            '/',
-            mainBranch
-          );
-
-          if (!isMounted) return;
-
-          legitFsRef.current = _legitFs;
-          setLegitFs(_legitFs);
-          setBranch(mainBranch);
+        setLegitFs(_legitFs);
+        setLoading(false);
+      } catch (err) {
+        if (isMounted) {
+          setError(err as Error);
           setLoading(false);
-        } catch (err) {
-          if (isMounted) {
-            setError(err as Error);
-            setLoading(false);
-          }
         }
-      }
-
-      // set window.legitFs for debugging
-      if (typeof window !== 'undefined') {
-        (window as any).legitFs = legitFsRef.current;
       }
 
       // start syncing
       if (syncService) {
-        syncService.start();
+        // syncService.start();
         setSyncing(true);
       } else {
         setSyncing(false);
       }
 
       let isRunning = false;
-      if ((legitFs || legitFsRef.current) && branch) {
+      if (legitFs && branch) {
         pollHead = setInterval(async () => {
-          const _legitFs = legitFs || legitFsRef.current;
+          const _legitFs = legitFs;
           if (!_legitFs) return;
           if (isRunning) {
             console.log('Skipping poll - previous still running');
@@ -235,7 +200,9 @@ export const LegitProvider = ({
       }
     };
 
-    initFs(branch ?? config.initialBranch);
+    if (!legitFs) {
+      initFs(branch ?? config.initialBranch);
+    }
 
     return () => {
       isMounted = false;

@@ -386,7 +386,10 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       !(flags.includes('w') || flags.includes('a'))
     ) {
       // in case the file doesnt exist but planned to
-      throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
+      throw Object.assign(
+        new Error(`ENOENT: no such file or directory, open '${filePath}'`),
+        { code: 'ENOENT', errno: -2, syscall: 'open', path: filePath }
+      );
     }
 
     // Ensure parent directories exist in memfs

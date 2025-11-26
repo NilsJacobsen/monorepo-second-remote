@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { mockInitLegitFs, mockOpenLegitFs } from '../__mocks__/mockLegitFs';
+import { mockOpenLegitFs } from '../__mocks__/mockLegitFs';
 import { mockConfig, mockGetSyncToken } from '../__mocks__/mockConfig';
 import {
   mockCreateLegitSyncService,
@@ -9,13 +9,12 @@ import {
 
 // mock the sdk
 vi.mock('@legit-sdk/core', () => ({
-  initLegitFs: mockInitLegitFs,
   createLegitSyncService: mockCreateLegitSyncService,
   openLegitFs: mockOpenLegitFs,
 }));
 
 import { LegitConfig, LegitProvider, useLegitContext } from '../LegitProvider';
-import { initLegitFs, openLegitFs } from '@legit-sdk/core';
+import { openLegitFs } from '@legit-sdk/core';
 import { useEffect } from 'react';
 
 describe('Minimal setup', () => {
@@ -40,7 +39,7 @@ describe('Minimal setup', () => {
 
     // Wait for legitFs to initialize
     await waitFor(() => expect(screen.getByText('ready')).toBeDefined());
-    expect(initLegitFs).toHaveBeenCalled();
+    expect(openLegitFs).toHaveBeenCalled();
     unmount();
   });
 });
@@ -68,12 +67,12 @@ describe('No initialBranch, sync enabled', () => {
 
     // Wait for legitFs to initialize
     await waitFor(() => expect(screen.getByText('ready')).toBeDefined());
-    expect(initLegitFs).toHaveBeenCalled();
+    expect(openLegitFs).toHaveBeenCalled();
     unmount();
   });
 
   it('handles init error', async () => {
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('Init failed')
     );
 
@@ -97,7 +96,7 @@ describe('No initialBranch, sync enabled', () => {
     const initPromise = new Promise(resolve => {
       resolveInit = resolve;
     });
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
       initPromise as any
     );
 
@@ -124,9 +123,9 @@ describe('No initialBranch, sync enabled', () => {
 
   it('does not update HEAD if value unchanged', async () => {
     const readFile = vi.fn().mockResolvedValue('head1');
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     let updateCount = 0;
     const Consumer = () => {
@@ -163,9 +162,9 @@ describe('No initialBranch, sync enabled', () => {
       return Promise.resolve('');
     });
 
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     // Spy on setInterval
     const originalSetInterval = global.setInterval;
@@ -212,9 +211,9 @@ describe('No initialBranch, sync enabled', () => {
     const readFile = vi.fn().mockResolvedValue('head1');
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
 
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     const { unmount } = render(
       <LegitProvider config={mockConfig} getSyncToken={mockGetSyncToken}>
@@ -222,7 +221,7 @@ describe('No initialBranch, sync enabled', () => {
       </LegitProvider>
     );
 
-    await waitFor(() => expect(mockInitLegitFs).toHaveBeenCalled());
+    await waitFor(() => expect(mockOpenLegitFs).toHaveBeenCalled());
 
     // Unmount should clear interval
     unmount();
@@ -235,9 +234,9 @@ describe('No initialBranch, sync enabled', () => {
     const readFile = vi.fn();
     const initPromise = Promise.resolve({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
       initPromise
     );
 
@@ -288,7 +287,7 @@ describe('With initialBranch, sync enabled', () => {
     );
     expect(openLegitFs).toHaveBeenCalled();
     expect(mockLegitSyncService.clone).toHaveBeenCalled();
-    expect(mockInitLegitFs).not.toHaveBeenCalled();
+    expect(mockOpenLegitFs).not.toHaveBeenCalled();
 
     unmount();
   });
@@ -469,12 +468,12 @@ describe('No initialBranch, sync disabled', () => {
 
     // Wait for legitFs to initialize
     await waitFor(() => expect(screen.getByText('ready')).toBeDefined());
-    expect(initLegitFs).toHaveBeenCalled();
+    expect(openLegitFs).toHaveBeenCalled();
     unmount();
   });
 
   it('handles init error', async () => {
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('Init failed')
     );
 
@@ -498,7 +497,7 @@ describe('No initialBranch, sync disabled', () => {
     const initPromise = new Promise(resolve => {
       resolveInit = resolve;
     });
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
       initPromise as any
     );
 
@@ -525,9 +524,9 @@ describe('No initialBranch, sync disabled', () => {
 
   it('does not update HEAD if value unchanged', async () => {
     const readFile = vi.fn().mockResolvedValue('head1');
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     let updateCount = 0;
     const Consumer = () => {
@@ -563,9 +562,9 @@ describe('No initialBranch, sync disabled', () => {
       return Promise.resolve('');
     });
 
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     // Spy on setInterval
     const originalSetInterval = global.setInterval;
@@ -612,9 +611,9 @@ describe('No initialBranch, sync disabled', () => {
     const readFile = vi.fn().mockResolvedValue('head1');
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
 
-    mockInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     const { unmount } = render(
       <LegitProvider config={configNoSync} getSyncToken={mockGetSyncToken}>
@@ -622,7 +621,7 @@ describe('No initialBranch, sync disabled', () => {
       </LegitProvider>
     );
 
-    await waitFor(() => expect(mockInitLegitFs).toHaveBeenCalled());
+    await waitFor(() => expect(mockOpenLegitFs).toHaveBeenCalled());
 
     // Unmount should clear interval
     unmount();
@@ -635,9 +634,9 @@ describe('No initialBranch, sync disabled', () => {
     const readFile = vi.fn();
     const initPromise = Promise.resolve({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
+    } as unknown as ReturnType<typeof openLegitFs>);
 
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
       initPromise
     );
 

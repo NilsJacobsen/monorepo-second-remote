@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLegitContext } from './LegitProvider';
-import { HistoryItem, initLegitFs } from '@legit-sdk/core';
+import { HistoryItem, openLegitFs } from '@legit-sdk/core';
 
 export interface UseLegitFileOptions {
   initialData?: string;
@@ -13,7 +13,7 @@ export type UseLegitFileReturn = {
   getPastState: (commitHash: string) => Promise<string>;
   loading: boolean;
   error?: Error;
-  legitFs: Awaited<ReturnType<typeof initLegitFs>> | null;
+  legitFs: Awaited<ReturnType<typeof openLegitFs>> | null;
 };
 
 export function useLegitFile(

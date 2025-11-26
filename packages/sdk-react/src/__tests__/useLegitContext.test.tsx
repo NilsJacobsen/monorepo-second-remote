@@ -11,7 +11,6 @@ vi.mock('@legit-sdk/core', () => ({
 }));
 
 import { LegitProvider, useLegitContext } from '../LegitProvider';
-import { initLegitFs } from '@legit-sdk/core';
 
 describe('useLegitContext', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (

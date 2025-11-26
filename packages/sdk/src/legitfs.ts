@@ -12,74 +12,7 @@ export async function initMemFSLegitFs() {
   const memfs = createFsFromVolume(memfsVolume);
 
   // @ts-ignore -- initLegitFs will expect memfs type in the future
-  return initLegitFs(memfs as any, '/');
-}
-
-export async function initLegitFs(
-  storageFs: typeof nodeFs,
-  gitRoot: string,
-  defaultBranch = 'main',
-  initialAuthor: { name: string; email: string } = {
-    name: 'Test',
-    email: 'test@example.com',
-  }
-) {
-  let gitFolderExisted = false;
-  try {
-    await storageFs.promises.readdir(gitRoot + '/.git');
-    gitFolderExisted = true;
-  } catch (e) {
-    // ignore
-    // TODO check if the error is an folder doesnt exists error!
-  }
-
-  if (gitFolderExisted) {
-    throw new Error(
-      `cant use initLegitFs on a folder with a git repo (${gitRoot}), use openLegitFs instead`
-    );
-  }
-
-  await git.init({ fs: storageFs, dir: '/', defaultBranch: defaultBranch });
-
-  // Check if git config has author information, if not set it from initialAuthor
-  let userName = await git.getConfig({
-    fs: storageFs,
-    dir: gitRoot,
-    path: 'user.name',
-  });
-  if (!userName) {
-    await git.setConfig({
-      fs: storageFs,
-      dir: gitRoot,
-      path: 'user.name',
-      value: initialAuthor.name,
-    });
-  }
-
-  let userEmail = await git.getConfig({
-    fs: storageFs,
-    dir: gitRoot,
-    path: 'user.email',
-  });
-  if (!userEmail) {
-    await git.setConfig({
-      fs: storageFs,
-      dir: gitRoot,
-      path: 'user.email',
-      value: initialAuthor.email,
-    });
-  }
-
-  await storageFs.promises.writeFile(gitRoot + '/.keep', '');
-  await git.add({ fs: storageFs, dir: '/', filepath: '.keep' });
-  await git.commit({
-    fs: storageFs,
-    dir: '/',
-    message: 'Initial commit',
-    author: { name: 'Test', email: 'test@example.com' },
-  });
-
-  return openLegitFs(storageFs, gitRoot, defaultBranch);
+  return openLegitFs(memfs as any, '/');
 }
 
 /**
@@ -95,8 +28,25 @@ export async function openLegitFs(
     email: 'test@example.com',
   }
 ) {
-  // Check if git config has author information, if not set it from initialAuthor
+  let repoExists = await storageFs.promises
+    .readdir(gitRoot + '/.git')
+    .then(() => true)
+    .catch(() => false);
 
+  if (!repoExists) {
+    // initiliaze git repo with anonyomous branch
+    await git.init({ fs: storageFs, dir: '/', defaultBranch: 'anonymous' });
+    await storageFs.promises.writeFile(gitRoot + '/.keep', '');
+    await git.add({ fs: storageFs, dir: '/', filepath: '.keep' });
+    await git.commit({
+      fs: storageFs,
+      dir: '/',
+      message: 'Initial commit',
+      author: { name: 'Test', email: 'test@example.com' },
+    });
+  }
+
+  // Check if git config has author information, if not set it from initialAuthor
   let userName = await git.getConfig({
     fs: storageFs,
     dir: gitRoot,
@@ -204,5 +154,49 @@ export async function openLegitFs(
   userSpaceFs.setHiddenFilesSubFs(gitFsHiddenFs);
   userSpaceFs.setEphemeralFilesSubFs(gitFsEphemeralFs);
 
-  return userSpaceFs;
+  const legitfs = Object.assign(userSpaceFs, {
+    share: async (branchId: string): Promise<string> => {
+      const currentBranch = await legitfs.getCurrentBranch();
+      if (currentBranch === 'anonymous') {
+        // create uuid (later call to server to get a session id)
+        // rename current branch to uuid
+        await git.renameBranch({
+          fs: storageFs,
+          dir: gitRoot,
+          oldref: 'anonymous',
+          ref: branchId,
+        });
+      }
+
+      // push current branch to remote (no longer anonymous)
+      return currentBranch;
+    },
+    setCurrentBranch: async (branch: string): Promise<void> => {
+      // check if branch exists
+      const branches = await git.listBranches({ fs: storageFs, dir: gitRoot });
+      const branchExists = branches.includes(branch);
+      if (!branchExists) {
+        // if not - try to fetch it from remote
+        throw new Error(`Branch ${branch} does not exist`);
+      }
+      // if successfull - set branch
+      await git.setConfig({
+        fs: storageFs,
+        dir: gitRoot,
+        path: 'init.defaultBranch',
+        value: branch,
+      });
+    },
+    getCurrentBranch: async (): Promise<string> => {
+      // returns the current user branch
+      const branch = await git.getConfig({
+        fs: storageFs,
+        dir: gitRoot,
+        path: 'init.defaultBranch',
+      });
+      return branch!;
+    },
+  });
+
+  return legitfs;
 }

@@ -6,12 +6,13 @@ import {
   useLegitContext,
   LegitConfig,
 } from '@legit-sdk/react';
-import { HistoryItem, initLegitFs } from '@legit-sdk/core';
+
+import { HistoryItem } from '@legit-sdk/core';
 import { DiffMatchPatch } from 'diff-match-patch-ts';
 import { format } from 'timeago.js';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState, useCallback, memo, useEffectEvent } from 'react';
+import { useEffect, useState, useCallback, memo } from 'react';
 
 const INITIAL_TEXT = 'This is a document that you can edit! 🖋️';
 
@@ -204,7 +205,7 @@ const HistoryListItem = memo(function HistoryListItem({
 
 export default function Home() {
   const config: LegitConfig = {
-    initialBranch: '255827',
+    // initialBranch: '255827',
     sync: {
       serverUrl: 'http://localhost:9999/',
       gitRepoPath: '/',
