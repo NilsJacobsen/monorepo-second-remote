@@ -268,13 +268,6 @@ export class CompositeFs {
    * @returns
    */
   async readdir(dirPath: nodeFs.PathLike, options?: any) {
-    const responsibleFs = await this.getResponsibleFs(dirPath);
-
-    // in case of the passsThrough fs - we don't enrich the result
-    if (responsibleFs === this.passThroughFileSystem) {
-      return responsibleFs.readdir(dirPath, options);
-    }
-
     // Create a Union of all files from the filesystems
     // NOTE - for the list of filenames only this is enought
     // -> for stats we need to skip files we already got from a previous subFs

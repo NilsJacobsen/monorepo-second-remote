@@ -895,8 +895,7 @@ export const createAsyncNfsHandler = (args: {
       try {
         // Rename the file/directory
         await asyncFs.rename(fromPath, toPath);
-
-        console.warn('RENAME NOT MANAGED BY NFS FILEHANDLE MANAGER');
+        fileHandleManager.rename(fromDirHandle, fromName, toDirHandle, toName);
 
         // Get directory stats after rename
         const fromDirStatsAfter = await asyncFs.stat(fromDirPath);
@@ -1121,7 +1120,10 @@ export const createAsyncNfsHandler = (args: {
 
       let fsHandle = nfsHandle.fsHandle.fh;
 
+      let closeAfterRead = false;
+
       if (fsHandle === undefined) {
+        closeAfterRead = true;
         const path = fileHandleManager.getPathFromHandle(handle)!;
         fsHandle = await asyncFs.open(path, 'r+');
       }
@@ -1147,8 +1149,6 @@ export const createAsyncNfsHandler = (args: {
         const eof =
           bytesRead < count || Number(offset) + bytesRead >= stats.size;
 
-        fsHandle.close();
-
         return {
           status: nfsstat3.OK,
           data: dataBuf,
@@ -1167,6 +1167,10 @@ export const createAsyncNfsHandler = (args: {
         return {
           status: nfsstat3.ERR_SERVERFAULT,
         };
+      } finally {
+        if (closeAfterRead) {
+          await fsHandle.close();
+        }
       }
     },
 
@@ -1268,7 +1272,7 @@ export const createAsyncNfsHandler = (args: {
       }
     },
 
-    write: async (handle, offset, data, count, _stableHow) => {
+    write: async (handle, offset, data, count, stableHow) => {
       const nfsHandle = fileHandleManager.getHandle(handle);
 
       if (!nfsHandle) {
@@ -1306,10 +1310,17 @@ export const createAsyncNfsHandler = (args: {
         // Write the data
         const { bytesWritten } = await fsHandle.write(
           data,
-          Number(offset),
-          data.length,
-          Number(count)
+          0, // we always write from start of buffer
+          data.length, // we always write the full buffer
+          Number(offset) // offset is the offset in the file (NFS level)
         );
+
+        if (stableHow !== 0) {
+          // 0 = undestable, 1 = data sync, 2 = file sync
+          await fsHandle.sync();
+
+          // TODO close the handler since we dont expect a commit?
+        }
 
         // Get updated file stats after write
         const newStats = await fsHandle.stat();

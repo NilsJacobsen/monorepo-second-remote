@@ -118,6 +118,25 @@ export const createFileHandleManager = (
       };
     },
 
+    rename(
+      fromHandle: Buffer,
+      fromName: string,
+      toHandle: Buffer,
+      toName: string
+    ) {
+      const targetParentFsHandle = fileHandleManager.getHandle(toHandle)!;
+      const oldHandleEntry = fileHandleManager.getFileHandle(
+        fromHandle,
+        fromName
+      )!;
+
+      oldHandleEntry.fsHandle!.parentNfsHandle =
+        targetParentFsHandle.nfsHandle.toString('hex');
+      oldHandleEntry.fsHandle!.pathSegment = toName;
+
+      oldHandleEntry.fsHandle!.fh = undefined;
+    },
+
     getFileHandle: (
       parentHandle: Buffer | undefined,
       filePath: string,
