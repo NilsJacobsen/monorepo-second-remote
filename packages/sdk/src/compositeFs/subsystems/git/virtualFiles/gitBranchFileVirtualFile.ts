@@ -394,7 +394,14 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
   },
 
   // TODO move to vfile
-  unlink: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
+  unlink: async ({
+    filePath,
+    gitRoot,
+    nodeFs,
+    cacheFs,
+    pathParams,
+    author,
+  }) => {
     if (!pathParams.branchName) {
       throw new Error('branchName should be in pathParams');
     }
@@ -438,12 +445,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         tree: newTreeOid,
         noUpdateBranch: true,
         parent: [branchCommit],
-        author: {
-          name: 'GitLegitFs',
-          email: 'gitlegit@example.com',
-          timestamp: Math.floor(Date.now() / 1000),
-          timezoneOffset: 0,
-        },
+        author,
       });
 
       // Update branch reference
@@ -464,6 +466,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     content,
     cacheFs,
     pathParams,
+    author,
   }) => {
     // Parse the path to get branch name and file path
     if (pathParams.branchName === undefined) {
@@ -546,12 +549,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         tree: newTreeOid,
         noUpdateBranch: true,
         parent: [branchCommit],
-        author: {
-          name: 'GitLegitFs',
-          email: 'gitlegit@example.com',
-          timestamp: Math.floor(Date.now() / 1000),
-          timezoneOffset: 0,
-        },
+        author,
       });
 
       // Update the branch reference
@@ -578,6 +576,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     nodeFs,
     pathParams,
     newPathParams,
+    author,
   }): Promise<void> {
     // Parse the path to get branch name and file path
 
@@ -678,12 +677,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         tree: newTreeOid,
         noUpdateBranch: true,
         parent: [currentBranchCommit],
-        author: {
-          name: 'GitLegitFs',
-          email: 'gitlegit@example.com',
-          timestamp: Math.floor(Date.now() / 1000),
-          timezoneOffset: 0,
-        },
+        author,
       });
 
       // Update the branch reference
@@ -792,12 +786,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         tree: newTreeOid,
         noUpdateBranch: true,
         parent: [branchCommit],
-        author: {
-          name: 'GitLegitFs',
-          email: 'gitlegit@example.com',
-          timestamp: Math.floor(Date.now() / 1000),
-          timezoneOffset: 0,
-        },
+        author: args.author,
       });
 
       // Update the branch reference
@@ -811,7 +800,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     }
   },
 
-  rmdir: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
+  rmdir: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams, author }) => {
     if (!pathParams.branchName) {
       throw new Error('branchName should be in pathParams');
     }
@@ -855,12 +844,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         tree: newTreeOid,
         noUpdateBranch: true,
         parent: [branchCommit],
-        author: {
-          name: 'GitLegitFs',
-          email: 'gitlegit@example.com',
-          timestamp: Math.floor(Date.now() / 1000),
-          timezoneOffset: 0,
-        },
+        author: author,
       });
 
       // Update branch reference

@@ -242,6 +242,28 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   private legitFileNames: string[];
   storageFs: CompositeFs;
 
+  async getAuthor(): Promise<{
+    name: string;
+    email: string;
+    date: number;
+    timezoneOffset: number;
+  }> {
+    const name = await git.getConfig({
+      fs: this.storageFs,
+      dir: this.gitRoot,
+      path: 'user.name',
+    });
+    const email = await git.getConfig({
+      fs: this.storageFs,
+      dir: this.gitRoot,
+      path: 'user.email',
+    });
+    const date = Math.floor(Date.now() / 1000);
+    const timezoneOffset = new Date().getTimezoneOffset();
+
+    return { name, email, date, timezoneOffset };
+  }
+
   constructor({
     parentFs,
     gitStorageFs,
@@ -337,6 +359,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
     let fileExistsInCache = false;
@@ -433,6 +456,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         gitRoot: this.gitRoot,
         pathParams: branchFileVf.params,
         ...optionsToPass,
+        author: await this.getAuthor(),
       });
 
       const optionsToPassToMemfs =
@@ -563,6 +587,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
     return stats;
@@ -719,6 +744,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
     if (result) {
@@ -802,6 +828,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed?.params,
+        author: await this.getAuthor(),
       });
 
       if (!fileFromGit?.content) {
@@ -878,6 +905,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed!.params,
+        author: await this.getAuthor(),
       });
 
       if (fileFromGit && fileFromGit.oid) {
@@ -944,6 +972,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
           nodeFs: this.storageFs,
           content: content,
           pathParams: pathHandler.params,
+          author: await this.getAuthor(),
         });
       }
 
@@ -1131,6 +1160,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         newPath: newPathStr,
         pathParams: branchFileVf?.params ?? {},
         newPathParams: newParsed?.params ?? {},
+        author: await this.getAuthor(),
       });
 
       // } else if (oldParsed.type === "branch-file" && !newParsed.isLegitPath) {
@@ -1164,6 +1194,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
           nodeFs: this.storageFs,
           gitRoot: this.gitRoot,
           pathParams: parsed.params,
+          author: await this.getAuthor(),
         });
       } catch (err) {
         // if the file was only written i memory unlink will fail
@@ -1208,6 +1239,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: parsed.params,
+        author: await this.getAuthor(),
       });
       let existsInMem = false;
       for (const [fd, fh] of Object.entries(this.openFh)) {

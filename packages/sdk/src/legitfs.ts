@@ -18,7 +18,11 @@ export async function initMemFSLegitFs() {
 export async function initLegitFs(
   storageFs: typeof nodeFs,
   gitRoot: string,
-  defaultBranch = 'main'
+  defaultBranch = 'main',
+  initialAuthor: { name: string; email: string } = {
+    name: 'Test',
+    email: 'test@example.com',
+  }
 ) {
   let gitFolderExisted = false;
   try {
@@ -36,6 +40,36 @@ export async function initLegitFs(
   }
 
   await git.init({ fs: storageFs, dir: '/', defaultBranch: defaultBranch });
+
+  // Check if git config has author information, if not set it from initialAuthor
+  let userName = await git.getConfig({
+    fs: storageFs,
+    dir: gitRoot,
+    path: 'user.name',
+  });
+  if (!userName) {
+    await git.setConfig({
+      fs: storageFs,
+      dir: gitRoot,
+      path: 'user.name',
+      value: initialAuthor.name,
+    });
+  }
+
+  let userEmail = await git.getConfig({
+    fs: storageFs,
+    dir: gitRoot,
+    path: 'user.email',
+  });
+  if (!userEmail) {
+    await git.setConfig({
+      fs: storageFs,
+      dir: gitRoot,
+      path: 'user.email',
+      value: initialAuthor.email,
+    });
+  }
+
   await storageFs.promises.writeFile(gitRoot + '/.keep', '');
   await git.add({ fs: storageFs, dir: '/', filepath: '.keep' });
   await git.commit({
@@ -51,12 +85,46 @@ export async function initLegitFs(
 /**
  * Creates and configures a LegitFs instance with CompositeFs, GitSubFs, HiddenFileSubFs, and EphemeralSubFs.
  */
-export function openLegitFs(
+export async function openLegitFs(
   storageFs: typeof nodeFs,
   gitRoot: string,
   defaultBranch = 'main',
-  showKeeFiles = false
+  showKeeFiles = false,
+  initialAuthor: { name: string; email: string } = {
+    name: 'Test',
+    email: 'test@example.com',
+  }
 ) {
+  // Check if git config has author information, if not set it from initialAuthor
+
+  let userName = await git.getConfig({
+    fs: storageFs,
+    dir: gitRoot,
+    path: 'user.name',
+  });
+  if (!userName) {
+    await git.setConfig({
+      fs: storageFs,
+      dir: gitRoot,
+      path: 'user.name',
+      value: initialAuthor.name,
+    });
+  }
+
+  let userEmail = await git.getConfig({
+    fs: storageFs,
+    dir: gitRoot,
+    path: 'user.email',
+  });
+  if (!userEmail) {
+    await git.setConfig({
+      fs: storageFs,
+      dir: gitRoot,
+      path: 'user.email',
+      value: initialAuthor.email,
+    });
+  }
+
   // rootFs is the top-level CompositeFs
   // it propagates operations to the real filesystem (storageFs)
   // it allows the child copmositeFs to define file behavior while tunneling through to the real fs

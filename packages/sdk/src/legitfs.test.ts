@@ -17,8 +17,8 @@ const files = {
 // writeFile('.legit/branches/main/.legit/metaname', 'my awesome path name')
 
 let memfs: any;
-let legitfs: ReturnType<typeof openLegitFs>;
-let secondLegitfs: ReturnType<typeof openLegitFs>;
+let legitfs: Awaited<ReturnType<typeof openLegitFs>>;
+let secondLegitfs: Awaited<ReturnType<typeof openLegitFs>>;
 
 async function setupRepo() {
   memfs = createFsFromVolume(
@@ -49,8 +49,8 @@ async function setupRepo() {
 describe('openLegitFs', () => {
   beforeEach(async () => {
     await setupRepo();
-    legitfs = openLegitFs(memfs, repoPath);
-    secondLegitfs = openLegitFs(memfs, repoPath, 'main', true);
+    legitfs = await openLegitFs(memfs, repoPath);
+    secondLegitfs = await openLegitFs(memfs, repoPath, 'main', true);
   });
 
   it('should read files from branch', async () => {

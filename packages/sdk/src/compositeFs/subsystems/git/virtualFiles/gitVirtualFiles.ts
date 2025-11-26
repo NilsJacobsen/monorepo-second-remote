@@ -31,6 +31,7 @@ export interface VirtualFileArgs {
   gitRoot: string;
   nodeFs?: any; // The actual node fs for git operations
   pathParams: any; // Parameters extracted from the router
+  author: { name: string; email: string; date: number; timezoneOffset: number }; // The author info for commits
 }
 
 export type VirtualFileDefinition = {
