@@ -372,9 +372,8 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
     // Write the virtual file content to memfs if the file existed
     if (
-      !fileExistsInCache &&
-      ((fileFromGit === undefined && !flags.includes('x')) ||
-        (fileFromGit && fileFromGit.type === 'file'))
+      (fileFromGit === undefined && !flags.includes('x')) ||
+      (fileFromGit && fileFromGit.type === 'file')
     ) {
       try {
         const access = await this.memFs.promises.access(filePath);
@@ -950,7 +949,6 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
       // remove the write cache
       openFh.unflushed = [];
-      await this.memFs.promises.writeFile(openFh.path, '' as string);
     }
   }
 
@@ -1158,19 +1156,38 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const parsed = this.getRouteHandler(pathStr);
 
     if (parsed?.handler.unlink !== undefined) {
-      await parsed.handler.unlink({
-        cacheFs: this.memFs,
-        filePath: pathStr,
-        // fs: this.compositFs,
-        nodeFs: this.storageFs,
-        gitRoot: this.gitRoot,
-        pathParams: parsed.params,
-      });
-      for (const [fd, fh] of Object.entries(this.openFh)) {
-        if (fh.path === '/' + pathStr) {
-          await fh.fh.close();
+      try {
+        await parsed.handler.unlink({
+          cacheFs: this.memFs,
+          filePath: pathStr,
+          // fs: this.compositFs,
+          nodeFs: this.storageFs,
+          gitRoot: this.gitRoot,
+          pathParams: parsed.params,
+        });
+      } catch (err) {
+        // if the file was only written i memory unlink will fail
+        let unflused = false;
+        for (const [fd, fh] of Object.entries(this.openFh)) {
+          if (fh.path === pathStr && fh.unflushed.length > 0) {
+            unflused = true;
+          }
+        }
+        if (!unflused) {
+          throw err;
+        }
+      } finally {
+        let existsInMem = false;
+        for (const [fd, fh] of Object.entries(this.openFh)) {
+          if (fh.path === pathStr) {
+            existsInMem = true;
+            await fh.fh.close();
+            delete this.openFh[Number(fd)];
+          }
+        }
+        if (existsInMem) {
+          // file existed in memory and was removed
           await this.memFs.promises.unlink(pathStr);
-          delete this.openFh[Number(fd)];
         }
       }
     } else {
@@ -1192,12 +1209,17 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         gitRoot: this.gitRoot,
         pathParams: parsed.params,
       });
+      let existsInMem = false;
       for (const [fd, fh] of Object.entries(this.openFh)) {
         if (fh.path === pathStr) {
+          existsInMem = true;
           await fh.fh.close();
-          await this.memFs.promises.rmdir(pathStr, { recursive: true });
           delete this.openFh[Number(fd)];
         }
+      }
+      if (existsInMem) {
+        // file existed in memory and was removed
+        await this.memFs.promises.unlink(pathStr);
       }
     } else {
       throw new Error(`Cannot rmdir 
