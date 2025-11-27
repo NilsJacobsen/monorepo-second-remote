@@ -3,11 +3,17 @@ import { useAssistantState } from '@assistant-ui/react';
 import { FC, useEffect, useState } from 'react';
 import { Button } from '../ui/button';
 import { useSharedAssistantForm } from '@/lib/assistantFormContext';
+import { Label } from '../ui/label';
 
 const ChangesCard: FC = () => {
+  const messageStatus = useAssistantState(({ message }) => message.status);
   const messageId = useAssistantState(({ message }) => message.id);
+  const dependingBranchCommitId = useAssistantState(
+    ({ message }) => message.metadata.custom.depending_branch_commit_id
+  );
   const { legitFs, getMessageDiff, getPastState, rollback } = useLegitFs();
   const [diff, setDiff] = useState<DiffMap | undefined>(undefined);
+  const [isLastCommit, setIsLastCommit] = useState(true);
   const form = useSharedAssistantForm();
 
   const ignoreKeys = ['hidden'];
@@ -19,6 +25,20 @@ const ChangesCard: FC = () => {
   };
 
   type DiffMap = Record<string, DiffEntry>;
+
+  useEffect(() => {
+    const checkIfLastCommit = async () => {
+      const head = await legitFs?.promises.readFile(
+        '/.legit/branches/main/.legit/head',
+        'utf8'
+      );
+      return head === dependingBranchCommitId;
+    };
+
+    checkIfLastCommit().then(isLastCommit => {
+      setIsLastCommit(isLastCommit);
+    });
+  }, [messageStatus]);
 
   useEffect(() => {
     const logOperationHistory = async () => {
@@ -93,13 +113,15 @@ const ChangesCard: FC = () => {
         </span>
         <p className="flex-1">Changes</p>
 
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => handleRollback(messageId)}
-        >
-          Rollback
-        </Button>
+        {!isLastCommit ? (
+          <Button size="sm" onClick={() => handleRollback(messageId)}>
+            Restore
+          </Button>
+        ) : (
+          <Label className="text-sm px-3 py-1 bg-gray-100 rounded-full text-gray-500">
+            Current
+          </Label>
+        )}
       </h2>
       <div className="py-2">
         {Object.entries(diff).map(([key, value]) => {
