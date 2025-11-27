@@ -1,4 +1,5 @@
 import * as nodeFs from 'node:fs';
+import { createLegitSyncService } from './sync/createLegitSyncService.js';
 import git from 'isomorphic-git';
 
 import { CompositeFs } from './compositeFs/CompositeFs.js';
@@ -6,6 +7,8 @@ import { EphemeralSubFs } from './compositeFs/subsystems/EphemeralFileSubFs.js';
 import { GitSubFs } from './compositeFs/subsystems/git/GitSubFs.js';
 import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
+import { createSessionManager, LegitUser } from './sync/sessionManager.js';
+import { createGitConfigTokenStore } from './sync/createGitConfigTokenStore.js';
 
 export async function initMemFSLegitFs() {
   const memfsVolume = new Volume();
@@ -22,11 +25,15 @@ export async function openLegitFs(
   storageFs: typeof nodeFs,
   gitRoot: string,
   defaultBranch = 'main',
-  showKeeFiles = false,
-  initialAuthor: { name: string; email: string } = {
-    name: 'Test',
-    email: 'test@example.com',
-  }
+  showKeepFiles = false,
+  initialAuthor: LegitUser = {
+    type: 'local',
+    id: 'local',
+    name: 'Local User',
+    email: 'local@legitcontrol.com',
+  },
+  serverUrl: 'https://sync.legitcontrol.com',
+  publicKey: string
 ) {
   let repoExists = await storageFs.promises
     .readdir(gitRoot + '/.git')
@@ -43,6 +50,21 @@ export async function openLegitFs(
       dir: '/',
       message: 'Initial commit',
       author: { name: 'Test', email: 'test@example.com' },
+    });
+  }
+
+  // Check if git config has author information, if not set it from initialAuthor
+  let legitUserId = await git.getConfig({
+    fs: storageFs,
+    dir: gitRoot,
+    path: 'user.legit_user_id',
+  });
+  if (!legitUserId) {
+    await git.setConfig({
+      fs: storageFs,
+      dir: gitRoot,
+      path: 'user.legit_user_id',
+      value: initialAuthor.name,
     });
   }
 
@@ -117,7 +139,7 @@ export async function openLegitFs(
     gitStorageFs: rootFs,
   });
 
-  const hiddenFiles = showKeeFiles ? ['.git'] : ['.git', '.keep'];
+  const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
   const gitFsHiddenFs = new HiddenFileSubFs({
     parentFs: userSpaceFs,
     gitRoot,
@@ -154,8 +176,26 @@ export async function openLegitFs(
   userSpaceFs.setHiddenFilesSubFs(gitFsHiddenFs);
   userSpaceFs.setEphemeralFilesSubFs(gitFsEphemeralFs);
 
+  const tokenStore = createGitConfigTokenStore({ storageFs, gitRoot });
+  const sessionManager = createSessionManager(tokenStore, publicKey);
+
+  let syncService = createLegitSyncService({
+    fs: storageFs as any,
+    gitRepoPath: gitRoot,
+    serverUrl: serverUrl,
+    auth: sessionManager
+  });
+
   const legitfs = Object.assign(userSpaceFs, {
+    auth: sessionManager,
+    
+    push: async (branches: string[]): Promise<void> => {
+      // 
+    },
     share: async (branchId: string): Promise<string> => {
+      if ((await sessionManager.getUser()).type === 'local') {
+        throw new Error('login first - for example anonymously using legitfs.auth.signInAnonymously()');
+      }
       const currentBranch = await legitfs.getCurrentBranch();
       if (currentBranch === 'anonymous') {
         // create uuid (later call to server to get a session id)
@@ -168,6 +208,10 @@ export async function openLegitFs(
         });
       }
 
+      await syncService.push([branchId]);
+
+      legitfs.setCurrentBranch(branchId);
+
       // push current branch to remote (no longer anonymous)
       return currentBranch;
     },
@@ -176,8 +220,7 @@ export async function openLegitFs(
       const branches = await git.listBranches({ fs: storageFs, dir: gitRoot });
       const branchExists = branches.includes(branch);
       if (!branchExists) {
-        // if not - try to fetch it from remote
-        throw new Error(`Branch ${branch} does not exist`);
+        await syncService?.loadBranch(branch);
       }
       // if successfull - set branch
       await git.setConfig({

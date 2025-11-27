@@ -1,5 +1,6 @@
 import git, { FsClient } from 'isomorphic-git';
 import http from 'isomorphic-git/http/node';
+import { LegitAuth } from './sessionManager.js';
 
 const remote = 'legit';
 
@@ -23,16 +24,54 @@ export const createLegitSyncService = ({
   fs,
   gitRepoPath,
   serverUrl = 'https://hub.legitcontrol.com',
-  token,
+  auth,
 }: {
   fs: FsClient;
   gitRepoPath: string;
   serverUrl?: string;
-  token: string;
+  auth: LegitAuth;
 }) => {
   let running = false;
 
+  async function loadBranch(branch: string) {
+    const token = await auth.getMaxAccessTokenForBranch(branch);
+    // later check if the token kan do enough here
+    if (!token) {
+      throw new Error(`No access token for branch ${branch}`);
+    }
+    await git.fetch({
+      fs,
+      http,
+      dir: gitRepoPath,
+      singleBranch: true,
+      ref: `${remote}/${branch}`,
+      remote,
+      url: serverUrl!,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const remoteCommit = await git.resolveRef({
+      fs,
+      dir: gitRepoPath,
+      ref: `${remote}/${branch}`,
+    });
+
+    await git.writeRef({
+      fs,
+      dir: gitRepoPath,
+      ref: `refs/heads/${branch}`,
+      value: remoteCommit,
+    });
+  }
+
+  let unpushedRefs: string[] = [];
+
   async function pull() {
+    // NOTE for now we take any token - later we should check what we are allowed to fetch
+    const token = await auth.getMaxAccessTokenForBranch('todo');
+
     await git.fetch({
       fs,
       http,
@@ -45,8 +84,6 @@ export const createLegitSyncService = ({
     });
 
     const localRefs = await git.listBranches({ fs, dir: gitRepoPath });
-
-    let unpushedRefs = [];
 
     for (const localRef of localRefs) {
       // find branches that don't exist remote (should be added - not implicit for now!)
@@ -153,15 +190,6 @@ export const createLegitSyncService = ({
       }
     }
 
-    // TODO this filters any brounc with anonymous - need a better way to handle this
-    unpushedRefs = unpushedRefs.filter(v => v.indexOf('anonymous') === -1);
-
-    if (unpushedRefs.length === 0) {
-      return;
-    } else {
-      await push(unpushedRefs);
-    }
-
     // const resolvedConflicts: string[] = [];
 
     // // Merge with "use mine" behavior
@@ -199,8 +227,14 @@ export const createLegitSyncService = ({
   }
 
   async function push(branchesToPush: string[]) {
+    if ((await auth.getUser()).type === 'local') {
+      // local users cant push
+      return;
+    }
+
     // console.log('monitor push - pushing...');
     for (const branch of branchesToPush) {
+      const token = await auth.getMaxAccessTokenForBranch(branch);
       await git.push({
         fs: fs,
         http,
@@ -215,7 +249,7 @@ export const createLegitSyncService = ({
     }
   }
 
-  async function monitorChanges() {
+  async function pullPushTick() {
     const existing = await git.getConfig({
       fs,
       dir: gitRepoPath,
@@ -233,6 +267,12 @@ export const createLegitSyncService = ({
 
     try {
       await pull();
+      // TODO this filters any brounc with anonymous - need a better way to handle this
+      let branchesToPush = unpushedRefs.filter(
+        v => v.indexOf('anonymous') === -1
+      );
+
+      await push(branchesToPush);
       // Get the current commit SHA
       // const currentCommitSha = await git.resolveRef({
       //   fs: fs,
@@ -258,42 +298,31 @@ export const createLegitSyncService = ({
     } finally {
       // Schedule the next execution after 1 second
       if (running) {
-        setTimeout(monitorChanges, 1000);
+        setTimeout(pullPushTick, 1000);
       }
     }
   }
 
-  function startPolling() {
+  function startSync() {
     running = true;
-    monitorChanges();
+    pullPushTick();
   }
 
-  function stopPolling() {
+  function stopSync() {
     running = false;
   }
 
   return {
-    clone: async (token: string, branch: string) => {
-      return git.clone({
-        fs,
-        http,
-        dir: gitRepoPath,
-        remote,
-        ref: branch,
-        url: serverUrl,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-    },
     start: () => {
       if (!running) {
-        startPolling();
+        startSync();
         running = true;
       }
     },
     stop: () => {
-      stopPolling();
+      stopSync();
     },
+    loadBranch,
+    push,
   };
 };

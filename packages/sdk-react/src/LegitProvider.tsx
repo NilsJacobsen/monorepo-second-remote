@@ -47,11 +47,25 @@ export interface LegitProviderProps {
   getSyncToken?: GetSyncToken;
 }
 
+type User = {
+  id: string;
+  type: 'anonymous' | 'user';
+  // Used for commits
+  name: string; // can be changed (we could even change it in unpushed commits)
+  email: string; // anonymous@legitcontrol.com for anonymous users, on of the users emails for logged in users
+}
+
+// in the current setup an anonymous session is established by the branch shared with a user
+// 
+type Session = {
+  type: 'local' | 'anonymous' | 'user';
+} 
+
 export type LegitConfig = {
   initialBranch?: string;
   sync?: {
     serverUrl: string; // hub.legitcontrol.com
-    gitRepoPath: string;
+    gitRepoPath: string; // unique repo path
   };
 };
 
