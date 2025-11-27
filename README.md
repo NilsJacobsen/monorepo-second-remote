@@ -71,6 +71,3 @@ Please review the [CLA](./cla/CLA.md) before submitting contributions.
 We welcome PRs, issues, and suggestions to make Legit SDK better for everyone.
 
 
-### License
-
-[Apache](./LICENSE)
