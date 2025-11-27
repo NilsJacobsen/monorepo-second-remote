@@ -54,6 +54,7 @@ describe('openLegitFs', () => {
       gitRoot: repoPath,
       anonymousBranch: 'main',
       showKeepFiles: false,
+      publicKey: 'public-key-placeholder',
     });
 
     secondLegitfs = await openLegitFs({

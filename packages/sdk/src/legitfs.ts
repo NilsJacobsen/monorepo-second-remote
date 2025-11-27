@@ -194,6 +194,10 @@ export async function openLegitFs({
     auth: sessionManager,
   });
 
+  if (publicKey) {
+    syncService.start();
+  }
+
   const legitfs = Object.assign(userSpaceFs, {
     auth: sessionManager,
 

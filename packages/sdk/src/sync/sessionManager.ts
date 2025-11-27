@@ -58,7 +58,10 @@ export const createSessionManager = (
     },
     getMaxAccessTokenForBranch: async (_branchId: string) => {
       const currentTokens = await tokenStore.getUserTokens(userMeta.id);
-      if (currentTokens.accessTokens.length === 0) {
+      if (
+        currentTokens.accessTokens === undefined ||
+        currentTokens.accessTokens.length === 0
+      ) {
         // TODO for now we just use the public key - which is not a refresh token but the access token.
         return publicKey;
       }
