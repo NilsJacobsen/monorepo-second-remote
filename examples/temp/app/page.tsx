@@ -90,7 +90,7 @@ export default function Home() {
     console.log('setCurrentBranch');
     if(!legitFs) return;
 
-    await legitFs.setCurrentBranch('anonymous');
+    await legitFs.setCurrentBranch('6196780577441196');
     console.log('current branch', await legitFs.getCurrentBranch());
   };
 
