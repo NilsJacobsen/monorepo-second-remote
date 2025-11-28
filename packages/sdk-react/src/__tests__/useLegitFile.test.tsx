@@ -1,10 +1,8 @@
-// @ts-nocheck
-
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { mockedLegitFs } from '../__mocks__/mockLegitFs';
 import { mockCreateLegitSyncService } from '../__mocks__/mockCreateLegitSyncService';
-import { mockConfig, mockGetSyncToken } from '../__mocks__/mockConfig';
+import { mockConfig } from '../__mocks__/mockConfig';
 
 vi.mock('@legit-sdk/core', () => ({
   initLegitFs: vi.fn().mockResolvedValue(mockedLegitFs),
@@ -17,9 +15,7 @@ import { useLegitFile } from '../useLegitFile';
 
 describe('useLegitFile', () => {
   const wrapper = ({ children }: { children: React.ReactNode }) => (
-    <LegitProvider config={mockConfig} getSyncToken={mockGetSyncToken}>
-      {children}
-    </LegitProvider>
+    <LegitProvider config={mockConfig}>{children}</LegitProvider>
   );
 
   beforeEach(() => {
@@ -146,7 +142,7 @@ describe('useLegitFile', () => {
     });
 
     expect(mockedLegitFs.promises.writeFile).toHaveBeenCalledWith(
-      `/.legit/branches/main/file.txt`,
+      `/.legit/branches/anonymous/file.txt`,
       'new text',
       'utf8'
     );

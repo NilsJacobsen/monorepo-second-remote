@@ -5,8 +5,7 @@ export const mockedLegitFs = {
     readFile: vi.fn(),
     writeFile: vi.fn(),
   },
-  defaultBranch: 'main',
+  getCurrentBranch: vi.fn().mockResolvedValue('anonymous'),
 };
 
-export const mockInitLegitFs = vi.fn().mockResolvedValue(mockedLegitFs);
 export const mockOpenLegitFs = vi.fn().mockResolvedValue(mockedLegitFs);
