@@ -86,6 +86,9 @@ export const LegitProvider = ({
 
   useEffect(() => {
     if (!legitFs) return;
+
+    (window as any).legitFs = legitFs;
+
     const pollHead = setInterval(async () => {
       const currentBranch = await legitFs.getCurrentBranch();
       const newHead = await legitFs.promises.readFile(

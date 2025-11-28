@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { GetSyncToken, LegitConfig } from '../LegitProvider';
 
 export const mockConfig: LegitConfig = {

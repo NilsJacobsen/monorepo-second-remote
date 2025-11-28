@@ -21,6 +21,7 @@ export function useLegitFile(
   options?: UseLegitFileOptions
 ): UseLegitFileReturn {
   const { legitFs, error: fsError, head } = useLegitContext();
+
   const [data, setData] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,21 +39,20 @@ export function useLegitFile(
     const load = async () => {
       setLoading(true);
       try {
-        const filePath = `/.legit/branches/${legitFs.defaultBranch}${path}`;
-        const historyPath = `/.legit/branches/${legitFs.defaultBranch}/.legit/history`;
+        const currentBranch = await legitFs.getCurrentBranch();
+
+        const filePath = `/.legit/branches/${currentBranch}${path}`;
+        const historyPath = `/.legit/branches/${currentBranch}/.legit/history`;
 
         // Simple read with graceful error handling
         // const [textResult, historyResult] = await Promise.allSettled([
-        const textResult = await legitFs.promises.readFile(filePath, 'utf8');
+        const text = await legitFs.promises.readFile(filePath, 'utf8');
         const historyResult = await legitFs.promises
           .readFile(historyPath, 'utf8')
           .catch(() => '');
         // ]);
 
         if (isCancelled) return;
-
-        // Handle file content
-        const text = textResult;
 
         // Handle history
         let parsedHistory: HistoryItem[] = [];
@@ -102,9 +102,11 @@ export function useLegitFile(
         // Store pending save to prevent unnecessary reloads
         pendingSaveRef.current = newText;
 
+        const currentBranch = await legitFs.getCurrentBranch();
+
         // Write file - this triggers commit synchronously
         await legitFs.promises.writeFile(
-          `/.legit/branches/${legitFs.defaultBranch}${path}`,
+          `/.legit/branches/${currentBranch}${path}`,
           newText,
           'utf8'
         );

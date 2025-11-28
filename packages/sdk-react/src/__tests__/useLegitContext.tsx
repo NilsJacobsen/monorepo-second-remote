@@ -1,3 +1,5 @@
+// @ts-nocheck
+
 import { beforeEach, describe, expect, it, vi, afterEach } from 'vitest';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { mockedLegitFs } from '../__mocks__/mockLegitFs';

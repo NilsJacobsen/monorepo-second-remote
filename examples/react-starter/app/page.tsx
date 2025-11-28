@@ -21,6 +21,7 @@ function Editor() {
   const legitFile = useLegitFile('/document.txt', {
     initialData: INITIAL_TEXT,
   });
+  const { legitFs } = useLegitContext();
   const getPastState = legitFile.getPastState;
   const { head } = useLegitContext();
   const [text, setText] = useState('');
@@ -28,10 +29,28 @@ function Editor() {
 
   useEffect(() => {
     if (legitFile.data !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setText(legitFile.data);
     }
   }, [legitFile.data]);
+
+  const handleShare = async () => {
+    if (legitFs) {
+      await legitFs.auth.signInAnonymously();
+      const branch = await legitFs.shareCurrentBranch();
+      console.log('shared branch', branch);
+
+      const shareLink = `${window.location.origin}?branch=${branch}`;
+      console.log('share link', shareLink);
+    }
+  };
+
+  const handleJoin = async () => {
+    if (legitFs) {
+      await legitFs.auth.signInAnonymously();
+      const branch = await legitFs.setCurrentBranch('7630917801008525');
+      console.log('joined branch', branch);
+    }
+  };
 
   // Checkout a commit by loading its content from history
   const handleCheckout = useCallback(
@@ -58,13 +77,29 @@ function Editor() {
 
   if (legitFile.loading)
     return <div className="p-8 text-gray-500">Loading repository…</div>;
-  if (legitFile.error) console.info(legitFile.error);
+  if (legitFile.error) console.log(legitFile.error);
 
   return (
     <div className="flex min-h-screen max-w-xl mx-auto flex-col p-8 gap-4">
-      <Link href="https://legitcontrol.com">
-        <Image alt="Legit Logo" src="/logo.svg" width={70} height={40} />
-      </Link>
+      <div className="flex justify-between items-center">
+        <Link href="https://legitcontrol.com">
+          <Image alt="Legit Logo" src="/logo.svg" width={70} height={40} />
+        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleShare}
+            className="bg-black text-white px-3 py-1 rounded-lg font-semibold hover:opacity-80 cursor-pointer disabled:opacity-50"
+          >
+            Share
+          </button>
+          <button
+            onClick={handleJoin}
+            className="bg-black text-white px-3 py-1 rounded-lg font-semibold hover:opacity-80 cursor-pointer disabled:opacity-50"
+          >
+            Join
+          </button>
+        </div>
+      </div>
 
       <h1 className="text-2xl font-semibold mt-8">Legit SDK Starter</h1>
       <p className="max-w-lg mb-8">
@@ -206,18 +241,13 @@ const HistoryListItem = memo(function HistoryListItem({
 export default function Home() {
   const config: LegitConfig = {
     // initialBranch: '255827',
-    sync: {
-      serverUrl: 'http://localhost:9999/',
-      gitRepoPath: '/',
-    },
-  };
-
-  const getSyncToken = async () => {
-    return 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJncyI6IkpmbEJqakwyRGJRRGhKa2dKMWlzWGZRUkR3QWVPbFdURjRJVUo3L2tDYWxyc1ZyckJ1c0w4R013RzI1M3N0WU1MbGFocWFIcUo1eVJQT0FQVTllZHYwQWhkb1VMUHE0aFozQ1JHeEN2Y09ZMThMbTlMeFpHenByOHpna3ZDdzIvcE1hcGRsZG0yZHl5dXF6SHlVRm43UFFKQ084RmFoZVVrTVBoUXF0UnJLR09wY1NteFFiZUEwTHJIY0dVWFRBR2xXNi8zRG9KbDV1VmhkT0ZON2xiMlNkTFRpNHpUT2dtNUxNeTBrdzg4WXNxVGZNUlZ1RjVyYWdlR2NjMVhPaFErWVJna2NKajJIWkc3MVI2OXlMY3E3MFY1Nzl6QlBBQ01pMXVxLzhSdXBmSkdXM3hDUXhxVHFRcllVRjVRREtBY282K3RUNTNXc3Z5Vk9tU20yWEZRZz09IiwicnAiOiJOaWxzSmFjb2JzZW4vdGVzdC1sZWdpdC1zeW5jIiwiYnciOlsibWFpbiJdLCJpYXQiOjE3NjQwOTA1OTN9.Qkhvn36ZArkE25ERkKbEVxF-qwpPCnyOYfDpnMhnmG85LsQumXUTzhv_mdlpsi-jMU6BLJv4Nh_vMUmoZnwf468u3hEbOsE-Jaqfl7U7kvNfwJwp1gL5R9mZGY7fxJ1mtVBLnoHOKP3mpfPd8mAP7N8T8Oam3GaKwz0bL6kkdbOSZ8JRAEnpGpY_cunUWgbYGZZyocBJ2_fu3CEcVqKPK8wcro3406bpImBUEzER0rBIJa9vFQnBjthcDYyPsO-NbuRFWc7TqkC9d--Nn6yKivu9so1CYhBRTC0z3gCuG6Zsfy65yjl2zaFd1-8KHa6WbRKH8xMPV9Y8mQDUKRijAg';
+    serverUrl: 'http://localhost:9999',
+    gitRoot: '/',
+    publicKey: process.env.NEXT_PUBLIC_LEGIT_PUBLIC_KEY,
   };
 
   return (
-    <LegitProvider config={config} getSyncToken={getSyncToken}>
+    <LegitProvider config={config}>
       <Editor />
     </LegitProvider>
   );
