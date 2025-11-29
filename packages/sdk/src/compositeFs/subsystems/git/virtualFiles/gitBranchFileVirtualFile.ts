@@ -208,7 +208,21 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       oid: branchCommit,
     });
     const { commit: commitObj } = commit;
+
+    const lastCommitForPath = await git.log({
+      fs: nodeFs,
+      dir: gitRoot,
+      ref: branchCommit,
+      filepath: pathParams.filePath,
+      depth: 1,
+    });
+
     const commitTimeMs = commitObj.committer.timestamp * 1000;
+
+    const pathCommitTimeMs =
+      lastCommitForPath.length > 0
+        ? lastCommitForPath[0]!.commit.committer.timestamp * 1000
+        : commitTimeMs;
 
     if (fileOrFolder.type === 'tree') {
       return {
@@ -231,14 +245,14 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         rdev: 0,
         blksize: 4096,
         blocks: 0,
-        atimeMs: commitTimeMs,
-        mtimeMs: commitTimeMs,
-        ctimeMs: commitTimeMs,
+        atimeMs: pathCommitTimeMs,
+        mtimeMs: pathCommitTimeMs,
+        ctimeMs: pathCommitTimeMs,
         birthtimeMs: commitTimeMs,
-        atime: new Date(commitTimeMs),
-        mtime: new Date(commitTimeMs),
-        ctime: new Date(commitTimeMs),
-        birthtime: new Date(commitTimeMs),
+        atime: new Date(pathCommitTimeMs),
+        mtime: new Date(pathCommitTimeMs),
+        ctime: new Date(pathCommitTimeMs),
+        birthtime: new Date(pathCommitTimeMs),
       } as any;
     } else {
       // NOTE we could extract the size by only reading the header from loose object https://github.com/isomorphic-git/isomorphic-git/blob/main/src/models/GitObject.js#L15
@@ -269,14 +283,14 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         rdev: 0,
         blksize: 4096,
         blocks: Math.ceil(blob.length / 4096),
-        atimeMs: commitTimeMs,
-        mtimeMs: commitTimeMs,
-        ctimeMs: commitTimeMs,
-        birthtimeMs: commitTimeMs,
-        atime: new Date(commitTimeMs),
-        mtime: new Date(commitTimeMs),
-        ctime: new Date(commitTimeMs),
-        birthtime: new Date(commitTimeMs),
+        atimeMs: pathCommitTimeMs,
+        mtimeMs: pathCommitTimeMs,
+        ctimeMs: pathCommitTimeMs,
+        birthtimeMs: pathCommitTimeMs,
+        atime: new Date(pathCommitTimeMs),
+        mtime: new Date(pathCommitTimeMs),
+        ctime: new Date(pathCommitTimeMs),
+        birthtime: new Date(pathCommitTimeMs),
       } as any;
     }
   },

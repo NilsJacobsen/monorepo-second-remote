@@ -42,7 +42,7 @@ async function setupRepo() {
     fs: memfs,
     dir: repoPath,
     message: 'Initial commit',
-    author: { name: 'Test', email: 'test@example.com' },
+    author: { name: 'Test', email: 'test@example.com', timestamp: 0 },
   });
 }
 
@@ -109,6 +109,30 @@ describe('openLegitFs', () => {
     await legitfs.promises.writeFile(newFilePath, 'Content after');
     const contentAfter = await legitfs.promises.readFile(newFilePath, 'utf-8');
     expect(contentAfter).toBe('Content after');
+  });
+
+  it('should add and remove keep file when adding/removing files and folders', async () => {
+    const folderAPath = `${repoPath}/.legit/branches/main/folderA`;
+    const folderBPath = `${folderAPath}/folderB`;
+
+    /**
+     * folderA/
+     * └── .keep <-- creating an empty dir creates a .keep file
+     */
+    await legitfs.promises.mkdir(folderAPath);
+    let folderContentFolderA =
+      await secondLegitfs.promises.readdir(folderAPath);
+    expect(folderContentFolderA, 'Keep file should exist in folderA').toContain(
+      '.keep'
+    );
+
+    const statsFolderA = await legitfs.promises.stat(folderAPath);
+    const statsA = await legitfs.promises.stat(
+      `${repoPath}/.legit/branches/main/a.txt`
+    );
+
+    expect(statsA.mtime).toBe(0);
+    expect(statsFolderA.mtime).not.toBe(0);
   });
 
   it('should add and remove keep file when adding/removing files and folders', async () => {
