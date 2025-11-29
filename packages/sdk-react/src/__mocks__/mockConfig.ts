@@ -1,14 +1,5 @@
-// @ts-nocheck
-
-import { GetSyncToken, LegitConfig } from '../LegitProvider';
+import { LegitConfig } from '../LegitProvider';
 
 export const mockConfig: LegitConfig = {
-  sync: {
-    serverUrl: 'http://mockUrl.com/api',
-    gitRepoPath: '/',
-  },
-};
-
-export const mockGetSyncToken: GetSyncToken = async () => {
-  return 'token';
+  gitRoot: '/',
 };

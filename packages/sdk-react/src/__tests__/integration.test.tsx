@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   act,
@@ -9,17 +7,12 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import {
-  mockedLegitFs,
-  mockInitLegitFs,
-  mockOpenLegitFs,
-} from '../__mocks__/mockLegitFs';
+import { mockedLegitFs, mockOpenLegitFs } from '../__mocks__/mockLegitFs';
 import React from 'react';
-import { mockConfig, mockGetSyncToken } from '../__mocks__/mockConfig';
+import { mockConfig } from '../__mocks__/mockConfig';
 import { mockCreateLegitSyncService } from '../__mocks__/mockCreateLegitSyncService';
 
 vi.mock('@legit-sdk/core', () => ({
-  initLegitFs: mockInitLegitFs,
   openLegitFs: mockOpenLegitFs,
   createLegitSyncService: mockCreateLegitSyncService,
 }));
@@ -66,17 +59,17 @@ describe('React wrapper integration', () => {
 
     let content = 'hello';
     mockedLegitFs.promises.readFile.mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/history'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/history'))
         return Promise.resolve(JSON.stringify([{ oid: '1' }]));
-      if (p.endsWith('/.legit/branches/main/.legit/head'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/head'))
         return Promise.resolve('h1');
-      if (p.endsWith('/.legit/branches/main/doc.txt'))
+      if (p.endsWith('/.legit/branches/anonymous/doc.txt'))
         return Promise.resolve(content);
       return Promise.resolve('');
     });
 
     render(
-      <LegitProvider config={mockConfig} getSyncToken={mockGetSyncToken}>
+      <LegitProvider config={mockConfig}>
         <TestPage />
       </LegitProvider>
     );
@@ -104,15 +97,15 @@ describe('React wrapper integration', () => {
   it('handles ENOENT on initialization and creates file on save', async () => {
     // Simulate missing file -> ENOENT
     mockedLegitFs.promises.readFile.mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/history'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/history'))
         return Promise.reject(
           Object.assign(new Error('ENOENT: no such file or directory'), {
             code: 'ENOENT',
           })
         );
-      if (p.endsWith('/.legit/branches/main/.legit/head'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/head'))
         return Promise.resolve('h1');
-      if (p.endsWith('/.legit/branches/main/doc.txt'))
+      if (p.endsWith('/.legit/branches/anonymous/doc.txt'))
         return Promise.reject(
           Object.assign(new Error('ENOENT: no such file or directory'), {
             code: 'ENOENT',
@@ -122,7 +115,7 @@ describe('React wrapper integration', () => {
     });
 
     render(
-      <LegitProvider config={mockConfig} getSyncToken={mockGetSyncToken}>
+      <LegitProvider config={mockConfig}>
         <TestPage />
       </LegitProvider>
     );
@@ -139,7 +132,7 @@ describe('React wrapper integration', () => {
 
     await waitFor(() =>
       expect(mockedLegitFs.promises.writeFile).toHaveBeenCalledWith(
-        '/.legit/branches/main/doc.txt',
+        '/.legit/branches/anonymous/doc.txt',
         'created file',
         'utf8'
       )

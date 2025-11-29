@@ -14,6 +14,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState, useCallback, memo } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Toaster, toast } from 'sonner';
 
 const INITIAL_TEXT = 'This is a document that you can edit! 🖋️';
 
@@ -52,6 +53,13 @@ function Editor() {
 
       const shareLink = `${window.location.origin}?branch=${branch}`;
       console.log('share link', shareLink);
+
+      // copy to clipboard
+      navigator.clipboard.writeText(shareLink);
+      toast('Copied invite link', {
+        description:
+          'The link to join the document has been copied to your clipboard',
+      });
     }
   };
 
@@ -84,6 +92,7 @@ function Editor() {
 
   return (
     <div className="flex min-h-screen max-w-xl mx-auto flex-col p-8 gap-4">
+      <Toaster />
       <div className="flex justify-between items-center">
         <Link href="https://legitcontrol.com">
           <Image alt="Legit Logo" src="/logo.svg" width={70} height={40} />
