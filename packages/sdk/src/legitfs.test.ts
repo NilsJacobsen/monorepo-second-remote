@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume, createFsFromVolume } from 'memfs';
 import * as isogit from 'isomorphic-git';
 import { openLegitFs } from './legitfs.js';
+import fs from 'fs';
 
 const repoPath = '/repo';
 const files = {
@@ -16,7 +17,8 @@ const files = {
 // writeFile('.legit/branches/main/.legit/metaname', 'my awesome path name')
 
 let memfs: any;
-let legitfs: ReturnType<typeof openLegitFs>;
+let legitfs: Awaited<ReturnType<typeof openLegitFs>>;
+let secondLegitfs: Awaited<ReturnType<typeof openLegitFs>>;
 
 async function setupRepo() {
   memfs = createFsFromVolume(
@@ -40,14 +42,26 @@ async function setupRepo() {
     fs: memfs,
     dir: repoPath,
     message: 'Initial commit',
-    author: { name: 'Test', email: 'test@example.com' },
+    author: { name: 'Test', email: 'test@example.com', timestamp: 0 },
   });
 }
 
 describe('openLegitFs', () => {
   beforeEach(async () => {
     await setupRepo();
-    legitfs = openLegitFs(memfs, repoPath);
+    legitfs = await openLegitFs({
+      storageFs: memfs,
+      gitRoot: repoPath,
+      anonymousBranch: 'main',
+      showKeepFiles: false,
+    });
+
+    secondLegitfs = await openLegitFs({
+      storageFs: memfs,
+      gitRoot: repoPath,
+      anonymousBranch: 'main',
+      showKeepFiles: true,
+    });
   });
 
   it('should read files from branch', async () => {
@@ -97,19 +111,153 @@ describe('openLegitFs', () => {
     expect(contentAfter).toBe('Content after');
   });
 
-  it('should create, rename, and move folders and files in branch', async () => {
+  it('should add and remove keep file when adding/removing files and folders', async () => {
+    const folderAPath = `${repoPath}/.legit/branches/main/folderA`;
+    const folderBPath = `${folderAPath}/folderB`;
+
+    /**
+     * folderA/
+     * └── .keep <-- creating an empty dir creates a .keep file
+     */
+    await legitfs.promises.mkdir(folderAPath);
+    let folderContentFolderA =
+      await secondLegitfs.promises.readdir(folderAPath);
+    expect(folderContentFolderA, 'Keep file should exist in folderA').toContain(
+      '.keep'
+    );
+
+    const statsFolderA = await legitfs.promises.stat(folderAPath);
+    const statsA = await legitfs.promises.stat(
+      `${repoPath}/.legit/branches/main/a.txt`
+    );
+
+    expect(statsA.mtime.getTime()).toBe(0);
+    expect(statsFolderA.mtime.getTime()).not.toBe(0);
+  });
+
+  it('should add and remove keep file when adding/removing files and folders', async () => {
+    const folderAPath = `${repoPath}/.legit/branches/main/folderA`;
+    const folderBPath = `${folderAPath}/folderB`;
+
+    /**
+     * folderA/
+     * └── .keep <-- creating an empty dir creates a .keep file
+     */
+    await legitfs.promises.mkdir(folderAPath);
+    let folderContentFolderA =
+      await secondLegitfs.promises.readdir(folderAPath);
+    expect(folderContentFolderA, 'Keep file should exist in folderA').toContain(
+      '.keep'
+    );
+
+    /**
+     * folderA/
+     * └── folderB/
+     *     └── .keep  <-- creating an empty dir creates a .keep file
+     * └xx .keep <--- should have been deleted because folder B's entry ensures existence of folder A
+     */
+    await legitfs.promises.mkdir(folderBPath);
+
+    folderContentFolderA = await secondLegitfs.promises.readdir(folderAPath);
+    expect(
+      folderContentFolderA,
+      'Keep file should have been deleted for folderA'
+    ).not.toContain('.keep');
+
+    let folderContentFolderB =
+      await secondLegitfs.promises.readdir(folderBPath);
+    expect(
+      folderContentFolderB,
+      'Keep file should have been created for folderB'
+    ).toContain('.keep');
+
+    /**
+     * folderA/
+     * └── folderB/
+     *     └xx .keep <- deleted after adding myfile.txt
+     *     └── .myfile.txt
+     */
+    await legitfs.promises.writeFile(`${folderBPath}/myfile.txt`, 'content');
+
+    folderContentFolderB = await secondLegitfs.promises.readdir(folderBPath);
+    expect(
+      folderContentFolderB,
+      'Keep file should be gone after adding a file to folderB'
+    ).not.toContain('.keep');
+
+    /**
+     * folderA/
+     * └── folderB/
+     *     └── .keep       <- added after deleting myfile.txt
+     *     └xx .myfile.txt <- deleted
+     */
+    await legitfs.promises.unlink(`${folderBPath}/myfile.txt`);
+
+    folderContentFolderB = await secondLegitfs.promises.readdir(folderBPath);
+    expect(
+      folderContentFolderB,
+      'Keep file should be added after removing last file from folderB'
+    ).toContain('.keep');
+
+    /**
+     * folderA/
+     * └xx folderB/
+     *     └xx .keep       <- deleted by removing folderB
+     * └── .keep           <- added after deleting folderB
+     */
+    await legitfs.promises.rmdir(`${folderBPath}`);
+
+    const folderBExists = await legitfs.promises
+      .stat(folderBPath)
+      .then(() => true)
+      .catch(e => false);
+    expect(folderBExists).toBe(false);
+
+    const folderAExists = await legitfs.promises
+      .stat(folderAPath)
+      .then(() => true)
+      .catch(e => false);
+    expect(folderAExists).toBe(true);
+  });
+
+  it('should create, rename, remove and move folders and files in branch', async () => {
     let commits = async () =>
       await isogit.log({ fs: memfs, dir: repoPath, depth: 100 });
 
     expect((await commits()).length).toBe(1);
 
     // Create folder
-    const folderPath = `${repoPath}/.legit/branches/main/newfolder`;
+    const folderPath = `${repoPath}/.legit/branches/main/newfolder/subfolder`;
     await legitfs.promises.mkdir(folderPath);
     const stats = await legitfs.promises.stat(folderPath);
     expect(stats.isDirectory()).toBe(true);
 
     expect((await commits()).length).toBe(2);
+
+    // Verify folder is empty
+    const folderContents = await secondLegitfs.promises.readdir(folderPath);
+    expect(folderContents, 'Keep file should exists').toContain('.keep');
+
+    const folderContentsWithKeep = await legitfs.promises.readdir(folderPath);
+    expect(
+      folderContentsWithKeep,
+      'The created .keep file should not be visible from legitFs'
+    ).toHaveLength(0);
+
+    // Write a file into the folder
+    const testFilePath = `${folderPath}/test.txt`;
+    await legitfs.promises.writeFile(testFilePath, 'content');
+    const fileContent = await legitfs.promises.readFile(testFilePath, 'utf-8');
+    expect(fileContent).toBe('content');
+
+    const folderContentsAfterFileWrite =
+      await legitfs.promises.readdir(folderPath);
+    expect(
+      folderContentsAfterFileWrite,
+      'The created .keep file should not be visible from legitFs'
+    ).toHaveLength(1);
+
+    expect((await commits()).length).toBe(3);
 
     // Rename folder
     const renamedFolder = `${repoPath}/.legit/branches/main/renamedfolder`;
@@ -117,7 +265,29 @@ describe('openLegitFs', () => {
     const statsRenamed = await legitfs.promises.stat(renamedFolder);
     expect(statsRenamed.isDirectory()).toBe(true);
 
-    expect((await commits()).length).toBe(3);
+    const folderBeforeRenamed = await legitfs.promises
+      .access(folderPath)
+      .then(() => true)
+      .catch(() => false);
+    expect(folderBeforeRenamed).toBe(false);
+
+    expect((await commits()).length).toBe(4);
+
+    // Move the test file into the root folder
+    const testFileInFolder = `${renamedFolder}/test.txt`;
+    const testFileInRoot = `${repoPath}/.legit/branches/main/test.txt`;
+    await legitfs.promises.rename(testFileInFolder, testFileInRoot);
+    const movedContent = await legitfs.promises.readFile(
+      testFileInRoot,
+      'utf-8'
+    );
+    expect(movedContent).toBe('content');
+
+    expect((await commits()).length).toBe(5);
+
+    // TODO this stat is working on the memfs - while
+    const statsRenamedAferMove = await legitfs.promises.stat(renamedFolder);
+    expect(statsRenamedAferMove.isDirectory()).toBe(true);
 
     // Move file into folder
     const fileInRoot = `${repoPath}/.legit/branches/main/a.txt`;
@@ -126,7 +296,7 @@ describe('openLegitFs', () => {
     const content = await legitfs.promises.readFile(fileInFolder, 'utf-8');
     expect(content).toBe('A file');
 
-    expect((await commits()).length).toBe(4);
+    expect((await commits()).length).toBe(6);
 
     // Rerename folder
     const rerenamedFolder = `${repoPath}/.legit/branches/main/rerenamedfolder`;
@@ -134,7 +304,7 @@ describe('openLegitFs', () => {
     const statsRerenamed = await legitfs.promises.stat(rerenamedFolder);
     expect(statsRerenamed.isDirectory()).toBe(true);
 
-    expect((await commits()).length).toBe(5);
+    expect((await commits()).length).toBe(7);
 
     // Move file back to root
     const fileBackToRoot = `${repoPath}/.legit/branches/main/a.txt`;
@@ -145,9 +315,18 @@ describe('openLegitFs', () => {
       'utf-8'
     );
 
+    // Verify folder is empty
+    const folderContentsAfterMove = await legitfs.promises.readdir(
+      fileInRereNamedFolder
+    );
+    expect(
+      folderContentsAfterMove,
+      'The created .keep file should not be visible from legitFs'
+    ).toHaveLength(0);
+
     expect(contentBack).toBe('A file');
     const commitsNow = await commits();
-    expect((await commits()).length).toBe(6);
+    expect((await commits()).length).toBe(8);
   });
 
   it('should get consistent stats for the branch folder over time', async () => {
@@ -544,6 +723,28 @@ describe('openLegitFs', () => {
       'utf-8'
     );
     expect(stillCurrentHead).toBe(validHead);
+  });
+
+  it('truncate and write file', async () => {
+    const filePath = `${repoPath}/.legit/branches/main/test.txt`;
+
+    // Get current valid head
+    await legitfs.promises.writeFile(filePath, 'content');
+
+    const fsHandle = await legitfs.promises.open(filePath, 'a+');
+
+    const statsBefore = await fsHandle.stat();
+
+    expect(statsBefore.size).toBe(7);
+
+    await fsHandle.truncate(Number(0));
+
+    const fsHandle2 = await legitfs.promises.open(filePath, 'a+');
+
+    const statsAfter = await fsHandle.stat();
+
+    expect(statsAfter.size).toBe(0);
+    await fsHandle2.close();
   });
 
   it.todo('should read files from previous commit');

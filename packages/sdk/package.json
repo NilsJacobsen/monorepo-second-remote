@@ -17,6 +17,7 @@
     "test": "vitest",
     "dev": "node  --loader ts-node/esm --inspect ./node_modules/vite-node/dist/cli.mjs --watch src/vite.ts",
     "build": "tsc && node esbuild.config.js && rollup -c rollup.dts.config.js",
+    "build:dev": "tsc --build",
     "build:watch": "tsc --noEmitOnError false --watch",
     "test:watch": "vitest --watch"
   },

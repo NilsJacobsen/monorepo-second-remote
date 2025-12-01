@@ -1,27 +1,37 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { act, render, screen, waitFor } from '@testing-library/react';
-import { mockedInitLegitFs } from '../__mocks__/mockLegitFs';
+import { mockedLegitFs, mockOpenLegitFs } from '../__mocks__/mockLegitFs';
+import { mockConfig } from '../__mocks__/mockConfig';
+import {
+  mockCreateLegitSyncService,
+  mockLegitSyncService,
+} from '../__mocks__/mockCreateLegitSyncService';
 
 // mock the sdk
 vi.mock('@legit-sdk/core', () => ({
-  initLegitFs: mockedInitLegitFs,
+  createLegitSyncService: mockCreateLegitSyncService,
+  openLegitFs: mockOpenLegitFs,
 }));
 
-import { LegitProvider, useLegitContext } from '../LegitProvider';
-import { initLegitFs } from '@legit-sdk/core';
+import { LegitConfig, LegitProvider, useLegitContext } from '../LegitProvider';
+import { openLegitFs } from '@legit-sdk/core';
+import { useEffect, useState } from 'react';
 
-describe('LegitProvider', () => {
+describe('Initializes legitFs', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('initializes legitFs and sets loading state', async () => {
+  it('minimal initialization and sets loading state', async () => {
     const Consumer = () => {
       const { legitFs, loading } = useLegitContext();
       return <div>{loading ? 'loading' : legitFs ? 'ready' : 'error'}</div>;
     };
 
-    render(
+    // track setInterval calls in Provider
+    const setIntervalSpy = vi.spyOn(global, 'setInterval');
+
+    const { unmount } = render(
       <LegitProvider>
         <Consumer />
       </LegitProvider>
@@ -32,260 +42,141 @@ describe('LegitProvider', () => {
 
     // Wait for legitFs to initialize
     await waitFor(() => expect(screen.getByText('ready')).toBeDefined());
-    expect(initLegitFs).toHaveBeenCalled();
+    expect(openLegitFs).toHaveBeenCalled();
+    expect(setIntervalSpy).toHaveBeenCalled();
+    unmount();
   });
 
-  it('handles init error', async () => {
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+  it('returns error if openLegitFs fails', async () => {
+    (openLegitFs as unknown as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
       new Error('Init failed')
     );
 
     const Consumer = () => {
-      const { loading, error } = useLegitContext();
-      return <div>{loading ? 'loading' : error ? 'error' : 'ready'}</div>;
+      const { error } = useLegitContext();
+      return <div>{error ? 'error' : 'ready'}</div>;
     };
 
-    render(
-      <LegitProvider>
+    const { unmount } = render(
+      <LegitProvider config={mockConfig}>
         <Consumer />
       </LegitProvider>
     );
 
     await waitFor(() => expect(screen.getByText('error')).toBeDefined());
+    unmount();
+  });
+});
+
+describe('polls HEAD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('does not update state if unmounted during initialization', async () => {
-    let resolveInit: (value: any) => void;
-    const initPromise = new Promise(resolve => {
-      resolveInit = resolve;
-    });
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
-      initPromise as any
-    );
-
+  it('updates HEAD only when it changes', async () => {
     const Consumer = () => {
-      const { loading } = useLegitContext();
-      return <div>{loading ? 'loading' : 'ready'}</div>;
+      const { loading, head } = useLegitContext();
+      const [headChangesCount, setHeadChangesCount] = useState(0);
+
+      useEffect(() => {
+        if (head !== null) {
+          setHeadChangesCount(headChangesCount + 1);
+        }
+      }, [head]);
+
+      return (
+        <div>
+          {loading ? 'loading' : <div data-testid="head-id">{head}</div>}
+          <div data-testid="head-changes-count">{headChangesCount}</div>
+        </div>
+      );
     };
+
+    // mock the readFile method with a counter,
+    // when it has been called for the 4th time change the returned string
+    // then for the 10th time change it again.
+    // after the 10th time, the returned string should be 'head3'.
+
+    let counter = 0;
+    const readFile = vi.fn().mockImplementation((p: string) => {
+      counter++;
+      if (p.endsWith('/.legit/head')) {
+        if (counter < 4) {
+          return Promise.resolve('head1');
+        } else if (counter < 10) {
+          return Promise.resolve('head2');
+        } else {
+          return Promise.resolve('head3');
+        }
+      }
+      return Promise.resolve('');
+    });
+
+    // mock the getCurrentBranch method
+    const getCurrentBranch = vi.fn().mockResolvedValue('anonymous');
+    mockOpenLegitFs.mockResolvedValueOnce({
+      promises: { readFile, writeFile: vi.fn() },
+      getCurrentBranch,
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     const { unmount } = render(
-      <LegitProvider>
+      <LegitProvider config={mockConfig}>
         <Consumer />
       </LegitProvider>
     );
 
-    expect(screen.getByText('loading')).toBeDefined();
-
-    // Unmount before initialization completes
-    unmount();
-
-    // Now resolve the promise
-    resolveInit!({ promises: { readFile: vi.fn(), writeFile: vi.fn() } });
-    await initPromise;
-
-    // Should not crash or update state - component is unmounted
-    // Note: React may still update state briefly, but the component tree is gone
-    // The key is that it doesn't crash
-  });
-
-  it.todo(
-    'starts polling HEAD and updates on changes - complex timing/closure issue in test environment'
-  );
-
-  it('does not update HEAD if value unchanged', async () => {
-    const readFile = vi.fn().mockResolvedValue('head1');
-    mockedInitLegitFs.mockResolvedValueOnce({
-      promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
-
-    // Spy on setInterval to capture the callback
-    const originalSetInterval = global.setInterval;
-    let captured: (() => void) | null = null;
-    const setIntervalSpy = vi
-      .spyOn(global, 'setInterval')
-      .mockImplementation((cb: any, _ms?: number): any => {
-        captured = cb;
-        return 1 as any;
-      });
-
-    let updateCount = 0;
-    const Consumer = () => {
-      const { head } = useLegitContext();
-      // Count non-null head values
-      if (head !== null && head !== 'none') updateCount++;
-      return <div data-testid="head-unique">{head ?? 'none'}</div>;
-    };
-
-    render(
-      <LegitProvider>
-        <Consumer />
-      </LegitProvider>
-    );
-
-    await waitFor(() => expect(initLegitFs).toHaveBeenCalled());
-    expect(captured).toBeTruthy();
-
-    // Trigger multiple polls with same value
-    await act(async () => {
-      await (captured as () => void)();
-      await (captured as () => void)();
-      await (captured as () => void)();
-    });
-
-    // Should only update once (initial update)
+    // The head from the useLegitContext should be 'head1' after initial render
     await waitFor(() =>
-      expect(screen.getByTestId('head-unique').textContent).toBe('head1')
+      expect(screen.getByTestId('head-id').textContent).toBe('head1')
     );
-    // updateCount tracks how many times head was set to a non-null value
-    expect(updateCount).toBeGreaterThanOrEqual(1);
+    // then it should be 'head2' after the 4th call
+    await waitFor(() =>
+      expect(screen.getByTestId('head-id').textContent).toBe('head2')
+    );
+    // then it should be 'head3' after the 10th call
+    await waitFor(() =>
+      expect(screen.getByTestId('head-id').textContent).toBe('head3')
+    );
 
-    setIntervalSpy.mockRestore();
-    global.setInterval = originalSetInterval;
+    // expect the head changes count to be 3
+    await waitFor(() =>
+      expect(screen.getByTestId('head-changes-count').textContent).toBe('3')
+    );
+
+    unmount();
   });
 
-  it('ignores ENOENT errors during polling', async () => {
+  it('handles error when polling HEAD', async () => {
+    // mock reading head to fail
     const readFile = vi.fn().mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/head')) {
-        return Promise.reject(
-          Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-        );
+      if (p.endsWith('/.legit/head')) {
+        return Promise.reject(new Error('Poll HEAD failed'));
       }
       return Promise.resolve('');
     });
 
-    mockedInitLegitFs.mockResolvedValueOnce({
+    mockOpenLegitFs.mockResolvedValueOnce({
       promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
-
-    // Spy on setInterval
-    const originalSetInterval = global.setInterval;
-    let captured: (() => void) | null = null;
-    const setIntervalSpy = vi
-      .spyOn(global, 'setInterval')
-      .mockImplementation((cb: any, _ms?: number): any => {
-        captured = cb;
-        return 1 as any;
-      });
-
-    const consoleErrorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
+      getCurrentBranch: vi.fn().mockResolvedValue('anonymous'),
+    } as unknown as ReturnType<typeof openLegitFs>);
 
     const Consumer = () => {
-      const { head } = useLegitContext();
-      return <div>{head ?? 'none'}</div>;
+      const { error } = useLegitContext();
+      return <div>{error ? 'error' : 'ready'}</div>;
     };
 
-    render(
-      <LegitProvider>
+    const { unmount } = render(
+      <LegitProvider config={mockConfig}>
         <Consumer />
       </LegitProvider>
     );
-
-    await waitFor(() => expect(initLegitFs).toHaveBeenCalled());
-    expect(captured).toBeTruthy();
-
-    // Trigger polling - should not crash
-    await act(async () => {
-      await (captured as () => void)();
-    });
-
-    // Should not log error for ENOENT
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-    consoleErrorSpy.mockRestore();
-    setIntervalSpy.mockRestore();
-    global.setInterval = originalSetInterval;
-  });
-
-  it('logs non-ENOENT errors during polling', async () => {
-    const readFile = vi.fn().mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/head')) {
-        return Promise.reject(new Error('Network error'));
-      }
-      return Promise.resolve('');
-    });
-
-    mockedInitLegitFs.mockResolvedValueOnce({
-      promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
-
-    // Spy on setInterval
-    const originalSetInterval = global.setInterval;
-    let captured: (() => void) | null = null;
-    const setIntervalSpy = vi
-      .spyOn(global, 'setInterval')
-      .mockImplementation((cb: any, _ms?: number): any => {
-        captured = cb;
-        return 1 as any;
-      });
-
-    const consoleErrorSpy = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => {});
-
-    render(
-      <LegitProvider>
-        <div>Test</div>
-      </LegitProvider>
-    );
-
-    await waitFor(() => expect(initLegitFs).toHaveBeenCalled());
-    expect(captured).toBeTruthy();
-
-    await act(async () => {
-      await (captured as () => void)();
-    });
-
-    await waitFor(() => expect(consoleErrorSpy).toHaveBeenCalled());
-    consoleErrorSpy.mockRestore();
-    setIntervalSpy.mockRestore();
-    global.setInterval = originalSetInterval;
-  });
-
-  it('cleans up polling interval on unmount', async () => {
-    const readFile = vi.fn().mockResolvedValue('head1');
-    const clearIntervalSpy = vi.spyOn(global, 'clearInterval');
-
-    mockedInitLegitFs.mockResolvedValueOnce({
-      promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
-
-    const { unmount } = render(
-      <LegitProvider>
-        <div>Test</div>
-      </LegitProvider>
-    );
-
-    await waitFor(() => expect(initLegitFs).toHaveBeenCalled());
-
-    // Unmount should clear interval
+    await waitFor(() => expect(screen.getByText('error')).toBeDefined());
     unmount();
-
-    await waitFor(() => expect(clearIntervalSpy).toHaveBeenCalled());
-    clearIntervalSpy.mockRestore();
   });
+});
 
-  it('does not poll if unmounted before init completes', async () => {
-    const readFile = vi.fn();
-    const initPromise = Promise.resolve({
-      promises: { readFile, writeFile: vi.fn() },
-    } as unknown as ReturnType<typeof initLegitFs>);
-
-    (initLegitFs as unknown as ReturnType<typeof vi.fn>).mockReturnValueOnce(
-      initPromise
-    );
-
-    const { unmount } = render(
-      <LegitProvider>
-        <div>Test</div>
-      </LegitProvider>
-    );
-
-    unmount();
-
-    await initPromise;
-
-    // Should not trigger polling
-    expect(readFile).not.toHaveBeenCalled();
+describe.todo('rollback to commit', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 });

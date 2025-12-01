@@ -240,19 +240,45 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
   private virtualFiles: VirtualFileDefinition[];
   private legitFileNames: string[];
+  storageFs: CompositeFs;
+
+  async getAuthor(): Promise<{
+    name: string;
+    email: string;
+    date: number;
+    timezoneOffset: number;
+  }> {
+    const name = await git.getConfig({
+      fs: this.storageFs,
+      dir: this.gitRoot,
+      path: 'user.name',
+    });
+    const email = await git.getConfig({
+      fs: this.storageFs,
+      dir: this.gitRoot,
+      path: 'user.email',
+    });
+    const date = Math.floor(Date.now() / 1000);
+    const timezoneOffset = new Date().getTimezoneOffset();
+
+    return { name, email, date, timezoneOffset };
+  }
 
   constructor({
     parentFs,
+    gitStorageFs,
     gitRoot,
     virtualFiles = allGitVirtualFiles,
   }: {
     parentFs: CompositeFs;
+    gitStorageFs: CompositeFs;
     gitRoot: string;
     virtualFiles?: VirtualFileDefinition[];
   }) {
     super({ parentFs, gitRoot });
 
     this.gitRoot = gitRoot;
+    this.storageFs = gitStorageFs;
     this.memFs = createFsFromVolume(new Volume());
     this.virtualFiles = virtualFiles;
 
@@ -329,45 +355,41 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const fileFromGit = await parsed.handler.getFile({
       cacheFs: this.memFs,
       filePath,
-      fs: this.compositFs,
+      // fs: this.compositFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.compositFs,
+      nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
-    if (flags.includes('x')) {
-      // NOTE we only support exclusive writes in branches so this logic only applies to branches
-      // check the open handlers if it exists there
-      for (const fh of Object.values(this.openFh)) {
-        if (fh.path === filePath) {
-          throw Object.assign(
-            new Error(`EEXIST: file already exists, open '${filePath}'`),
-            { code: 'EEXIST', errno: -17, syscall: 'open', path: filePath }
-          );
-        }
+    let fileExistsInCache = false;
+    for (const fh of Object.values(this.openFh)) {
+      if (fh.path === filePath) {
+        fileExistsInCache = true;
       }
-
-      // check if the file exists in the branch already
-      if (fileFromGit !== undefined) {
-        throw Object.assign(
-          new Error(`EEXIST: file already exists, open '${filePath}'`),
-          { code: 'EEXIST', errno: -17, syscall: 'open', path: filePath }
-        );
-      }
-
-      // add the new file if it doesnt - commit it as empty file - because of x mode we don't wait for the close
     }
 
     // fileFromFs
     // this.memFs.promises.
 
     // assert flags / file existence state
-    if (fileFromGit && flags.includes('x')) {
-      throw new Error('file existed - openend with x flag');
+    if ((fileFromGit || fileExistsInCache) && flags.includes('x')) {
+      throw Object.assign(
+        new Error(`EEXIST: file already exists, open '${filePath}'`),
+        { code: 'EEXIST', errno: -17, syscall: 'open', path: filePath }
+      );
     }
-    if (!fileFromGit && !(flags.includes('w') || flags.includes('a'))) {
+
+    if (
+      !fileFromGit &&
+      !fileExistsInCache &&
+      !(flags.includes('w') || flags.includes('a'))
+    ) {
       // in case the file doesnt exist but planned to
-      throw new Error(`ENOENT: no such file or directory, open '${filePath}'`);
+      throw Object.assign(
+        new Error(`ENOENT: no such file or directory, open '${filePath}'`),
+        { code: 'ENOENT', errno: -2, syscall: 'open', path: filePath }
+      );
     }
 
     // Ensure parent directories exist in memfs
@@ -394,6 +416,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const fd = fh.fd;
     const filehandle = new CompositFsFileHandle({
       fs: this,
+      compositeFs: this.compositFs,
       subFsFileDescriptor: fd,
       parentFsFileDescriptors: [],
     });
@@ -431,11 +454,12 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       await branchFileVf?.handler.mkdir({
         cacheFs: this.memFs,
         filePath: path.toString(),
-        fs: this.compositFs,
-        nodeFs: this.compositFs,
+        // fs: this.compositFs,
+        nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: branchFileVf.params,
         ...optionsToPass,
+        author: await this.getAuthor(),
       });
 
       const optionsToPassToMemfs =
@@ -448,7 +472,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const parts = pathStr.split('/');
       let current = '';
       for (let i = 1; i <= parts.length; i++) {
-        current = '/' + parts.slice(0, i).join('/');
+        current = parts.slice(0, i).join('/');
         // Only create if not already open and is a directory
         try {
           const stats = await this.memFs.promises.stat(current);
@@ -520,6 +544,10 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     if (!openFh) {
       throw new Error('Invalid file handle');
     }
+    openFh.unflushed.push({
+      length: 0,
+      start: 0,
+    });
     return await openFh.fh.truncate(len);
   }
 
@@ -543,7 +571,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
     // Check if there is an open file handle for this path
     const openFhEntry = Object.values(this.openFh).find(
-      fh => fh.path === pathStr
+      fh => fh.path === pathStr && fh.unflushed.length > 0
     );
     if (openFhEntry && openFhEntry.unflushed.length > 0) {
       return (await openFhEntry.fh.stat(opts)) as any; // TODO fix type
@@ -558,10 +586,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const stats = await parsed.handler.getStats({
       cacheFs: this.memFs,
       filePath: pathStr,
-      fs: this.compositFs,
+      // fs: this.compositFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.compositFs,
+      nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
     return stats;
@@ -714,10 +743,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const result = await parsed?.handler.getFile({
       cacheFs: this.memFs,
       filePath: pathStr,
-      fs: this.compositFs,
+      // fs: this.compositFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.compositFs,
+      nodeFs: this.storageFs,
       pathParams: parsed.params,
+      author: await this.getAuthor(),
     });
 
     if (result) {
@@ -797,10 +827,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh.path,
-        fs: this.compositFs,
+        // fs: this.compositFs,
         gitRoot: this.gitRoot,
-        nodeFs: this.compositFs,
+        nodeFs: this.storageFs,
         pathParams: parsed?.params,
+        author: await this.getAuthor(),
       });
 
       if (!fileFromGit?.content) {
@@ -873,10 +904,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh!.path,
-        fs: this.compositFs,
+        // fs: this.compositFs,
         gitRoot: this.gitRoot,
-        nodeFs: this.compositFs,
+        nodeFs: this.storageFs,
         pathParams: parsed!.params,
+        author: await this.getAuthor(),
       });
 
       if (fileFromGit && fileFromGit.oid) {
@@ -911,9 +943,12 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       throw new Error('Invalid file handle');
     }
 
-    await this.dataSync(fh);
-
-    delete this.openFh[subFsFd];
+    try {
+      await this.dataSync(fh);
+      await openFh.fh.close();
+    } finally {
+      delete this.openFh[subFsFd];
+    }
   }
 
   override async dataSync(fh: CompositFsFileHandle): Promise<void> {
@@ -935,17 +970,17 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         await pathHandler.handler.writeFile({
           cacheFs: this.memFs,
           filePath: openFh.path,
-          fs: this.compositFs,
+          // fs: this.compositFs,
           gitRoot: this.gitRoot,
-          nodeFs: this.compositFs,
+          nodeFs: this.storageFs,
           content: content,
           pathParams: pathHandler.params,
+          author: await this.getAuthor(),
         });
       }
 
       // remove the write cache
       openFh.unflushed = [];
-      await this.memFs.promises.writeFile(openFh.path, '' as string);
     }
   }
 
@@ -1122,12 +1157,13 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const result = await branchFileVf.handler.rename({
         cacheFs: this.memFs,
         filePath: oldPathStr,
-        fs: this.compositFs,
+        // fs: this.compositFs,
         gitRoot: this.gitRoot,
-        nodeFs: this.compositFs,
+        nodeFs: this.storageFs,
         newPath: newPathStr,
         pathParams: branchFileVf?.params ?? {},
         newPathParams: newParsed?.params ?? {},
+        author: await this.getAuthor(),
       });
 
       // } else if (oldParsed.type === "branch-file" && !newParsed.isLegitPath) {
@@ -1153,23 +1189,77 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const parsed = this.getRouteHandler(pathStr);
 
     if (parsed?.handler.unlink !== undefined) {
-      await parsed.handler.unlink({
-        cacheFs: this.memFs,
-        filePath: pathStr,
-        fs: this.compositFs,
-        nodeFs: this.compositFs,
-        gitRoot: this.gitRoot,
-        pathParams: parsed.params,
-      });
-      for (const [fd, fh] of Object.entries(this.openFh)) {
-        if (fh.path === pathStr) {
-          await fh.fh.close();
+      try {
+        await parsed.handler.unlink({
+          cacheFs: this.memFs,
+          filePath: pathStr,
+          // fs: this.compositFs,
+          nodeFs: this.storageFs,
+          gitRoot: this.gitRoot,
+          pathParams: parsed.params,
+          author: await this.getAuthor(),
+        });
+      } catch (err) {
+        // if the file was only written i memory unlink will fail
+        let unflused = false;
+        for (const [fd, fh] of Object.entries(this.openFh)) {
+          if (fh.path === pathStr && fh.unflushed.length > 0) {
+            unflused = true;
+          }
+        }
+        if (!unflused) {
+          throw err;
+        }
+      } finally {
+        let existsInMem = false;
+        for (const [fd, fh] of Object.entries(this.openFh)) {
+          if (fh.path === pathStr) {
+            existsInMem = true;
+            await fh.fh.close();
+            delete this.openFh[Number(fd)];
+          }
+        }
+        if (existsInMem) {
+          // file existed in memory and was removed
           await this.memFs.promises.unlink(pathStr);
-          delete this.openFh[Number(fd)];
         }
       }
     } else {
       throw new Error(`Cannot unlink ${parsed?.handler.type} files`);
+    }
+  }
+
+  override async rmdir(path: PathLike, ...args: any[]): Promise<void> {
+    const pathStr = path.toString();
+
+    const parsed = this.getRouteHandler(pathStr);
+
+    if (parsed?.handler.rmdir !== undefined) {
+      await parsed.handler.rmdir({
+        cacheFs: this.memFs,
+        filePath: pathStr,
+        // fs: this.compositFs,
+        nodeFs: this.storageFs,
+        gitRoot: this.gitRoot,
+        pathParams: parsed.params,
+        author: await this.getAuthor(),
+      });
+      let existsInMem = false;
+      for (const [fd, fh] of Object.entries(this.openFh)) {
+        if (fh.path === pathStr) {
+          existsInMem = true;
+          await fh.fh.close();
+          delete this.openFh[Number(fd)];
+        }
+      }
+      if (existsInMem) {
+        // file existed in memory and was removed
+
+        await this.memFs.promises.rmdir(pathStr, { recursive: true });
+      }
+    } else {
+      throw new Error(`Cannot rmdir 
+       ${parsed?.handler.type} directories`);
     }
   }
 

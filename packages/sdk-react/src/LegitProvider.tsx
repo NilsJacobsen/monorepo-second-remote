@@ -9,13 +9,14 @@ import {
   ReactNode,
   useRef,
 } from 'react';
-import { initLegitFs } from '@legit-sdk/core'; // your SDK import
+import { openLegitFs } from '@legit-sdk/core'; // your SDK import
 import fs from 'memfs'; // in-memory FS for demo
 
 export interface LegitContextValue {
-  legitFs: Awaited<ReturnType<typeof initLegitFs>> | null;
+  legitFs: Awaited<ReturnType<typeof openLegitFs>> | null;
   loading: boolean;
   head: string | null;
+  rollback: (commitHash: string) => Promise<void>;
   error?: Error;
 }
 
@@ -23,81 +24,120 @@ const LegitContext = createContext<LegitContextValue>({
   legitFs: null,
   loading: true,
   head: null,
+  rollback: async () => {},
 });
 
 export const useLegitContext = () => useContext(LegitContext);
 
 export interface LegitProviderProps {
   children: ReactNode;
+  config?: LegitConfig;
 }
+
+export type LegitConfig = {
+  gitRoot: string;
+  initialBranch?: string;
+  serverUrl?: string;
+  publicKey?: string;
+};
+
+const defaultConfig: LegitConfig = {
+  gitRoot: '/',
+};
 
 const DEFAULT_POLL_INTERVAL = 100; // Increased from 200ms to reduce polling frequency
 
-export const LegitProvider = ({ children }: LegitProviderProps) => {
+export const LegitProvider = ({
+  children,
+  config = defaultConfig,
+}: LegitProviderProps) => {
+  const [isFirstRender, setIsFirstRender] = useState(true);
   const [legitFs, setLegitFs] = useState<Awaited<
-    ReturnType<typeof initLegitFs>
+    ReturnType<typeof openLegitFs>
   > | null>(null);
-  const [loading, setLoading] = useState(true);
+
+  const headRef = useRef<string | null>(null);
   const [error, setError] = useState<Error | undefined>();
   const [head, setHead] = useState<string | null>(null);
-  const headRef = useRef<string | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
-    let pollHead: NodeJS.Timeout | undefined;
-    let lastSeenHead = '';
+    if (!isFirstRender) return;
 
-    const initFs = async () => {
+    const init = async () => {
       try {
-        const _legitFs = await initLegitFs(
-          fs as unknown as typeof import('node:fs'),
-          '/'
-        );
+        const _legitFs = await openLegitFs({
+          storageFs: fs as unknown as typeof import('node:fs'),
+          gitRoot: config.gitRoot,
+          serverUrl: config.serverUrl,
+          publicKey: config.publicKey,
+        });
 
-        if (!isMounted) return;
-
-        setLegitFs(_legitFs);
-        setLoading(false);
-
-        // Setup HEAD polling - simple and straightforward
-        pollHead = setInterval(async () => {
-          if (!isMounted || !_legitFs) return;
-          try {
-            const newHead = await _legitFs.promises.readFile(
-              '/.legit/branches/main/.legit/head',
-              'utf8'
-            );
-            // Only update if HEAD actually changed
-            if (newHead !== lastSeenHead && newHead !== headRef.current) {
-              lastSeenHead = newHead;
-              headRef.current = newHead;
-              setHead(newHead);
-            }
-          } catch (e) {
-            // Silently ignore polling errors - HEAD might not exist yet
-            if (isMounted && (e as any)?.code !== 'ENOENT') {
-              console.error('Polling head failed:', e);
-            }
-          }
-        }, DEFAULT_POLL_INTERVAL);
-      } catch (err) {
-        if (isMounted) {
-          setError(err as Error);
-          setLoading(false);
+        if (_legitFs) {
+          setLegitFs(_legitFs);
         }
+      } catch (err) {
+        setError(err as Error);
       }
     };
 
-    initFs();
-
-    return () => {
-      isMounted = false;
-      if (pollHead) clearInterval(pollHead);
-    };
+    init();
+    setIsFirstRender(false);
   }, []);
 
+  useEffect(() => {
+    if (!legitFs) return;
+
+    (window as any).legitFs = legitFs;
+
+    const pollHead = setInterval(async () => {
+      const currentBranch = await legitFs.getCurrentBranch();
+      try {
+        const newHead = await legitFs.promises.readFile(
+          `/.legit/branches/${currentBranch}/.legit/head`,
+          'utf8'
+        );
+        if (newHead !== headRef.current) {
+          headRef.current = newHead;
+          setHead(newHead);
+        }
+      } catch (err) {
+        setError(err as Error);
+      }
+    }, DEFAULT_POLL_INTERVAL);
+
+    return () => {
+      clearInterval(pollHead);
+    };
+  }, [legitFs]);
+
+  // TODO: enable rollback for operations as well
+  const rollback = async (commitHash: string) => {
+    if (!legitFs) {
+      console.error('No legitFs instance available');
+      return;
+    }
+    try {
+      const currentBranch = await legitFs.getCurrentBranch();
+      await legitFs.promises.writeFile(
+        `/.legit/branches/${currentBranch}/.legit/head`,
+        commitHash,
+        'utf8'
+      );
+    } catch (err) {
+      setError(err as Error);
+    }
+  };
+
   return (
-    <LegitContext.Provider value={{ legitFs, loading, head, error }}>
+    <LegitContext.Provider
+      value={{
+        legitFs,
+        loading: legitFs === null,
+        head,
+        rollback,
+        error,
+      }}
+    >
       {children}
     </LegitContext.Provider>
   );

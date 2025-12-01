@@ -27,10 +27,11 @@ export type VirtualFile =
 export interface VirtualFileArgs {
   cacheFs: IFs;
   filePath: string;
-  fs: CompositeFs;
+  // fs: CompositeFs;
   gitRoot: string;
   nodeFs?: any; // The actual node fs for git operations
   pathParams: any; // Parameters extracted from the router
+  author: { name: string; email: string; date: number; timezoneOffset: number }; // The author info for commits
 }
 
 export type VirtualFileDefinition = {
@@ -51,6 +52,7 @@ export type VirtualFileDefinition = {
       options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null;
     }
   ) => Promise<void>;
+  rmdir?: (args: VirtualFileArgs) => Promise<void>;
 };
 
 export const allGitVirtualFiles: VirtualFileDefinition[] = [

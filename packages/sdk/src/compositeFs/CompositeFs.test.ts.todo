@@ -94,6 +94,7 @@ describe('createCompositFs', () => {
 
     const gitSubFs = new GitSubFs({
       parentFs: compositeFs,
+      gitStorageFs: rootFs,
       gitRoot: repoPath,
     });
 

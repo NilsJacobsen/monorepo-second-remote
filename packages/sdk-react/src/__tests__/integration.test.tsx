@@ -7,12 +7,14 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react';
-import { mockLegitFs, mockedInitLegitFs } from '../__mocks__/mockLegitFs';
+import { mockedLegitFs, mockOpenLegitFs } from '../__mocks__/mockLegitFs';
 import React from 'react';
-import { useLegitFile } from '../useLegitFile';
+import { mockConfig } from '../__mocks__/mockConfig';
+import { mockCreateLegitSyncService } from '../__mocks__/mockCreateLegitSyncService';
 
 vi.mock('@legit-sdk/core', () => ({
-  initLegitFs: mockedInitLegitFs,
+  openLegitFs: mockOpenLegitFs,
+  createLegitSyncService: mockCreateLegitSyncService,
 }));
 
 afterEach(() => {
@@ -21,12 +23,14 @@ afterEach(() => {
 });
 
 import { LegitProvider } from '../LegitProvider';
+import { useLegitFile } from '../useLegitFile';
+
 const TestPage = () => {
-  const { content, setContent, history, loading } = useLegitFile('/doc.txt');
-  const [text, setText] = React.useState(content ?? '');
+  const { data, setData, history, loading } = useLegitFile('/doc.txt');
+  const [text, setText] = React.useState(data ?? '');
   React.useEffect(() => {
-    setText(content ?? '');
-  }, [content]);
+    setText(data ?? '');
+  }, [data]);
   if (loading) return <div>Loading...</div>;
 
   return (
@@ -36,11 +40,9 @@ const TestPage = () => {
         value={text}
         onChange={(e: any) => setText(e.target.value)}
       />
-      <button onClick={() => setContent(text)}>Save</button>
+      <button onClick={() => setData(text)}>Save</button>
       <div data-testid="history-count">{history.length}</div>
-      <pre data-testid="content">
-        {content === null ? 'is_null' : 'not_null'}
-      </pre>
+      <pre data-testid="content">{data === null ? 'is_null' : 'not_null'}</pre>
     </div>
   );
 };
@@ -56,18 +58,18 @@ describe('React wrapper integration', () => {
       });
 
     let content = 'hello';
-    mockLegitFs.promises.readFile.mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/history'))
+    mockedLegitFs.promises.readFile.mockImplementation((p: string) => {
+      if (p.endsWith('/.legit/branches/anonymous/.legit/history'))
         return Promise.resolve(JSON.stringify([{ oid: '1' }]));
-      if (p.endsWith('/.legit/branches/main/.legit/head'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/head'))
         return Promise.resolve('h1');
-      if (p.endsWith('/.legit/branches/main/doc.txt'))
+      if (p.endsWith('/.legit/branches/anonymous/doc.txt'))
         return Promise.resolve(content);
       return Promise.resolve('');
     });
 
     render(
-      <LegitProvider>
+      <LegitProvider config={mockConfig}>
         <TestPage />
       </LegitProvider>
     );
@@ -85,7 +87,7 @@ describe('React wrapper integration', () => {
     fireEvent.change(input, { target: { value: 'edited text' } });
     fireEvent.click(screen.getByText('Save'));
     await waitFor(() =>
-      expect(mockLegitFs.promises.writeFile).toHaveBeenCalled()
+      expect(mockedLegitFs.promises.writeFile).toHaveBeenCalled()
     );
     expect((input as HTMLInputElement).value).toBe('edited text');
 
@@ -94,16 +96,16 @@ describe('React wrapper integration', () => {
 
   it('handles ENOENT on initialization and creates file on save', async () => {
     // Simulate missing file -> ENOENT
-    mockLegitFs.promises.readFile.mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/branches/main/.legit/history'))
+    mockedLegitFs.promises.readFile.mockImplementation((p: string) => {
+      if (p.endsWith('/.legit/branches/anonymous/.legit/history'))
         return Promise.reject(
           Object.assign(new Error('ENOENT: no such file or directory'), {
             code: 'ENOENT',
           })
         );
-      if (p.endsWith('/.legit/branches/main/.legit/head'))
+      if (p.endsWith('/.legit/branches/anonymous/.legit/head'))
         return Promise.resolve('h1');
-      if (p.endsWith('/.legit/branches/main/doc.txt'))
+      if (p.endsWith('/.legit/branches/anonymous/doc.txt'))
         return Promise.reject(
           Object.assign(new Error('ENOENT: no such file or directory'), {
             code: 'ENOENT',
@@ -113,7 +115,7 @@ describe('React wrapper integration', () => {
     });
 
     render(
-      <LegitProvider>
+      <LegitProvider config={mockConfig}>
         <TestPage />
       </LegitProvider>
     );
@@ -129,8 +131,8 @@ describe('React wrapper integration', () => {
     fireEvent.click(screen.getByText('Save'));
 
     await waitFor(() =>
-      expect(mockLegitFs.promises.writeFile).toHaveBeenCalledWith(
-        '/.legit/branches/main/doc.txt',
+      expect(mockedLegitFs.promises.writeFile).toHaveBeenCalledWith(
+        '/.legit/branches/anonymous/doc.txt',
         'created file',
         'utf8'
       )

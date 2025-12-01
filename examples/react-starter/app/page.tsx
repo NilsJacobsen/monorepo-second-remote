@@ -1,41 +1,82 @@
 'use client';
 
-import { LegitProvider, useLegitFile, useLegitContext } from '@legit-sdk/react';
+import {
+  LegitProvider,
+  useLegitFile,
+  useLegitContext,
+  LegitConfig,
+} from '@legit-sdk/react';
+
 import { HistoryItem } from '@legit-sdk/core';
 import { DiffMatchPatch } from 'diff-match-patch-ts';
 import { format } from 'timeago.js';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, memo, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Toaster, toast } from 'sonner';
 
-const FILE_PATH = '/document.txt';
 const INITIAL_TEXT = 'This is a document that you can edit! 🖋️';
 
 function Editor() {
   // ✅ The hook handles reading, writing, and history tracking
-  const { content, setContent, history, getPastState, loading, error } =
-    useLegitFile(FILE_PATH, { initialContent: INITIAL_TEXT });
+  const legitFile = useLegitFile('/document.txt', {
+    initialData: INITIAL_TEXT,
+  });
+  const searchParams = useSearchParams();
+  const { legitFs } = useLegitContext();
+  const getPastState = legitFile.getPastState;
   const { head } = useLegitContext();
   const [text, setText] = useState('');
   const [checkedOutCommit, setCheckedOutCommit] = useState<string | null>(null);
 
   useEffect(() => {
-    if (content !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setText(content);
+    if (legitFs && searchParams.get('branch')) {
+      // sign in anonymously
+      legitFs.auth.signInAnonymously();
+      // set current branch
+      legitFs.setCurrentBranch(searchParams.get('branch')!);
     }
-  }, [content]);
+  }, [legitFs, searchParams]);
+
+  useEffect(() => {
+    if (legitFile.data !== null) {
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      setText(legitFile.data);
+    }
+  }, [legitFile.data]);
+
+  const handleShare = async () => {
+    if (legitFs) {
+      await legitFs.auth.signInAnonymously();
+      const branch = await legitFs.shareCurrentBranch();
+      console.log('shared branch', branch);
+
+      const shareLink = `${window.location.origin}?branch=${branch}`;
+      console.log('share link', shareLink);
+
+      // copy to clipboard
+      navigator.clipboard.writeText(shareLink);
+      toast('Copied invite link', {
+        description:
+          'The link to join the document has been copied to your clipboard',
+      });
+    }
+  };
 
   // Checkout a commit by loading its content from history
-  const handleCheckout = async (oid: string) => {
-    const past = await getPastState(oid);
-    setText(past);
-    setCheckedOutCommit(oid);
-  };
+  const handleCheckout = useCallback(
+    async (oid: string) => {
+      const past = await getPastState(oid);
+      setText(past);
+      setCheckedOutCommit(oid);
+    },
+    [getPastState]
+  );
 
   // Save changes → triggers legit commit under the hood
   const handleSave = async () => {
-    await setContent(text);
+    await legitFile.setData(text);
     setCheckedOutCommit(null); // Clear checkout after save
   };
 
@@ -43,19 +84,29 @@ function Editor() {
   // 1. Text hasn't changed from content (no changes to save)
   // 2. A commit is checked out that's not the current HEAD
   const isSaveDisabled =
-    text === content ||
+    text === legitFile.data ||
     (checkedOutCommit !== null && checkedOutCommit !== head);
 
-  if (loading)
+  if (legitFile.loading)
     return <div className="p-8 text-gray-500">Loading repository…</div>;
-  if (error)
-    return <div className="p-8 text-red-500">Error {error.message}</div>;
+  if (legitFile.error) console.log(legitFile.error);
 
   return (
     <div className="flex min-h-screen max-w-xl mx-auto flex-col p-8 gap-4">
-      <Link href="https://legitcontrol.com">
-        <Image alt="Legit Logo" src="/logo.svg" width={70} height={40} />
-      </Link>
+      <Toaster />
+      <div className="flex justify-between items-center">
+        <Link href="https://legitcontrol.com">
+          <Image alt="Legit Logo" src="/logo.svg" width={70} height={40} />
+        </Link>
+        <div className="flex gap-2">
+          <button
+            onClick={handleShare}
+            className="bg-black text-white px-3 py-1 rounded-lg font-semibold hover:opacity-80 cursor-pointer disabled:opacity-50"
+          >
+            Share
+          </button>
+        </div>
+      </div>
 
       <h1 className="text-2xl font-semibold mt-8">Legit SDK Starter</h1>
       <p className="max-w-lg mb-8">
@@ -68,7 +119,7 @@ function Editor() {
         <div className="flex justify-between bg-zinc-100 px-3 py-2 border-b border-zinc-300">
           <div className="flex gap-2 items-center">
             <Image alt="File" src="/file.svg" width={20} height={20} />
-            {FILE_PATH.replace('/', '')}
+            {'document.txt'}
           </div>
           <button
             onClick={handleSave}
@@ -91,13 +142,13 @@ function Editor() {
       {/* History */}
       <h2 className="mt-2 text-md font-semibold">History</h2>
       <div className="flex flex-col gap-2 max-w-lg w-full">
-        {history.map(h => (
+        {legitFile.history.map(h => (
           <HistoryListItem
             key={h.oid}
             item={h}
             isActive={h.oid === checkedOutCommit}
             onCheckout={handleCheckout}
-            getPastState={getPastState}
+            getPastState={legitFile.getPastState}
           />
         ))}
       </div>
@@ -112,7 +163,7 @@ type HistoryItemProps = {
   getPastState: (commitHash: string) => Promise<string>;
 };
 
-function HistoryListItem({
+const HistoryListItem = memo(function HistoryListItem({
   item,
   isActive,
   onCheckout,
@@ -192,12 +243,21 @@ function HistoryListItem({
       </div>
     </div>
   );
-}
+});
 
 export default function Home() {
+  const config: LegitConfig = {
+    // initialBranch: '255827',
+    serverUrl: 'http://localhost:9999',
+    gitRoot: '/',
+    publicKey: process.env.NEXT_PUBLIC_LEGIT_PUBLIC_KEY,
+  };
+
   return (
-    <LegitProvider>
-      <Editor />
-    </LegitProvider>
+    <Suspense fallback={<div>Loading...</div>}>
+      <LegitProvider config={config}>
+        <Editor />
+      </LegitProvider>
+    </Suspense>
   );
 }

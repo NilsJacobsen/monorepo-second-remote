@@ -10,7 +10,7 @@ export const gitCommitVirtualFolder: VirtualFileDefinition = {
     // TODO use the commit where the file was changed last as base
     const gitDir = args.gitRoot + '/' + '.git';
     try {
-      const gitStats = await args.fs.stat(gitDir);
+      const gitStats = await args.nodeFs.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT

@@ -1,19 +1,19 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useLegitContext } from './LegitProvider';
-import { HistoryItem, initLegitFs } from '@legit-sdk/core';
+import { HistoryItem, openLegitFs } from '@legit-sdk/core';
 
 export interface UseLegitFileOptions {
-  initialContent?: string;
+  initialData?: string;
 }
 
 export type UseLegitFileReturn = {
-  content: string | null;
-  setContent: (newText: string) => Promise<void>;
+  data: string | null;
+  setData: (newText: string) => Promise<void>;
   history: HistoryItem[];
   getPastState: (commitHash: string) => Promise<string>;
   loading: boolean;
   error?: Error;
-  legitFs: Awaited<ReturnType<typeof initLegitFs>> | null;
+  legitFs: Awaited<ReturnType<typeof openLegitFs>> | null;
 };
 
 export function useLegitFile(
@@ -21,7 +21,8 @@ export function useLegitFile(
   options?: UseLegitFileOptions
 ): UseLegitFileReturn {
   const { legitFs, error: fsError, head } = useLegitContext();
-  const [content, setContent] = useState<string | null>(null);
+
+  const [data, setData] = useState<string | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | undefined>();
@@ -38,34 +39,27 @@ export function useLegitFile(
     const load = async () => {
       setLoading(true);
       try {
-        const filePath = `/.legit/branches/main${path}`;
-        const historyPath = `/.legit/branches/main/.legit/history`;
+        const currentBranch = await legitFs.getCurrentBranch();
+
+        const filePath = `/.legit/branches/${currentBranch}${path}`;
+        const historyPath = `/.legit/branches/${currentBranch}/.legit/history`;
 
         // Simple read with graceful error handling
-        const [textResult, historyResult] = await Promise.allSettled([
-          legitFs.promises.readFile(filePath, 'utf8'),
-          legitFs.promises.readFile(historyPath, 'utf8').catch(() => ''),
-        ]);
+        // const [textResult, historyResult] = await Promise.allSettled([
+        const text = await legitFs.promises.readFile(filePath, 'utf8');
+        const historyResult = await legitFs.promises
+          .readFile(historyPath, 'utf8')
+          .catch(() => '');
+        // ]);
 
         if (isCancelled) return;
 
-        // Handle file content
-        const text =
-          textResult.status === 'fulfilled'
-            ? (textResult.value as string)
-            : null;
-
         // Handle history
         let parsedHistory: HistoryItem[] = [];
-        if (historyResult.status === 'fulfilled') {
-          try {
-            const historyContent = historyResult.value as string;
-            if (historyContent) {
-              parsedHistory = JSON.parse(historyContent);
-            }
-          } catch {
-            // Invalid JSON, keep empty array
-          }
+
+        const historyContent = historyResult as string;
+        if (historyContent) {
+          parsedHistory = JSON.parse(historyContent);
         }
 
         // Don't update if we have a pending save with the same content
@@ -73,7 +67,7 @@ export function useLegitFile(
           pendingSaveRef.current = null;
         }
 
-        setContent(text);
+        setData(text);
         setHistory(parsedHistory);
         setError(undefined);
       } catch (err: any) {
@@ -82,7 +76,7 @@ export function useLegitFile(
           setError(err as Error);
         } else {
           // File doesn't exist yet - that's ok
-          setContent(null);
+          setData(null);
           setHistory([]);
         }
       } finally {
@@ -108,15 +102,17 @@ export function useLegitFile(
         // Store pending save to prevent unnecessary reloads
         pendingSaveRef.current = newText;
 
+        const currentBranch = await legitFs.getCurrentBranch();
+
         // Write file - this triggers commit synchronously
         await legitFs.promises.writeFile(
-          `/.legit/branches/main${path}`,
+          `/.legit/branches/${currentBranch}${path}`,
           newText,
           'utf8'
         );
 
         // Optimistically update - HEAD polling will confirm
-        setContent(newText);
+        setData(newText);
       } catch (err) {
         pendingSaveRef.current = null;
         setError(err as Error);
@@ -136,13 +132,13 @@ export function useLegitFile(
     // 2. Content is null (file doesn't exist)
     // 3. legitFs is ready
     // 4. initialContent option is provided
-    if (!loading && content === null && legitFs && options?.initialContent) {
+    if (!loading && data === null && legitFs && options?.initialData) {
       isInitializingRef.current = true;
       hasInitializedRef.current = true;
 
       const initialize = async () => {
         try {
-          await save(options.initialContent!);
+          await save(options.initialData!);
         } catch (err) {
           // If initialization fails, reset flag so it can be retried
           // (but only if component is still mounted)
@@ -155,27 +151,30 @@ export function useLegitFile(
 
       initialize();
     }
-  }, [loading, content, legitFs, options?.initialContent, save]);
+  }, [loading, data, legitFs, options?.initialData, save]);
 
-  const getPastState = async (oid: string) => {
-    if (!legitFs) return '';
-    try {
-      // Remove leading slash from path for git commit file access
-      const gitPath = path.startsWith('/') ? path.slice(1) : path;
-      const past = await legitFs.promises.readFile(
-        `/.legit/commits/${oid.slice(0, 2)}/${oid.slice(2)}/${gitPath}`,
-        'utf8'
-      );
-      return past as unknown as string;
-    } catch {
-      return '';
-    }
-  };
+  const getPastState = useCallback(
+    async (oid: string) => {
+      if (!legitFs) return '';
+      try {
+        // Remove leading slash from path for git commit file access
+        const gitPath = path.startsWith('/') ? path.slice(1) : path;
+        const past = await legitFs.promises.readFile(
+          `/.legit/commits/${oid.slice(0, 2)}/${oid.slice(2)}/${gitPath}`,
+          'utf8'
+        );
+        return past as unknown as string;
+      } catch {
+        return '';
+      }
+    },
+    [legitFs, path]
+  );
 
   return {
-    content,
-    setContent: save,
-    history,
+    data,
+    setData: save,
+    history: useMemo(() => history, [history]),
     getPastState,
     loading,
     error: error ?? fsError,

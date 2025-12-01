@@ -127,7 +127,7 @@ export async function tryResolveRef(
  * Finds the common parts of the passed deletePathParts and add pathParts.
  *
  * deletePathParts: /path/to/removed-file/with/sub-folder/name.txt
- * addPathParts: /path/to/add-file/with/sub-folder/name2.txt
+ * addPathParts:    /path/to/add-file/with/sub-folder/name2.txt
  *
  * -> commonParts: /path/to
  *
@@ -149,6 +149,9 @@ export async function buildUpdatedTree({
   deletePathParts,
   addPathParts,
   addObj,
+  addKeepIfEmpty,
+  deleteKeepIfNotEmpty,
+  keepFilename = '.keep',
 }: {
   dir: string;
   fs: IFs;
@@ -184,11 +187,16 @@ export async function buildUpdatedTree({
         oid: string;
       }
     | undefined;
+
+  addKeepIfEmpty: boolean;
+  deleteKeepIfNotEmpty: boolean;
+  keepFilename?: string;
 }): Promise<string | undefined> {
   const [currentPathPartAdded, ...restPathPartsAdded] = addPathParts ?? [];
   const [currentPathPartDeleted, ...restPathPartsDeleted] =
     deletePathParts ?? [];
 
+  // read current tree entries
   let newEntries: TreeObject = [];
   if (currentOid) {
     const { tree } = await git.readTree({ fs, dir: dir, oid: currentOid });
@@ -225,6 +233,8 @@ export async function buildUpdatedTree({
       addPathParts: restPathPartsAdded,
       deletePathParts: restPathPartsDeleted,
       addObj,
+      addKeepIfEmpty,
+      deleteKeepIfNotEmpty,
     });
 
     if (newSubtreeOid === undefined) {
@@ -274,6 +284,10 @@ export async function buildUpdatedTree({
 
     let entryToMove: TreeEntry | undefined;
 
+    // move /path/to/removed-file/with/sub-folder/name.txt
+    //.              ^^^ should still exist ^^^^^
+    // to.  /path/to/new/with/sub-folder/name.txt
+
     if (currentPathPartDeleted) {
       const idx = newEntries.findIndex(e => e.path === currentPathPartDeleted);
       const entry = idx !== -1 ? newEntries[idx] : undefined;
@@ -297,6 +311,8 @@ export async function buildUpdatedTree({
           addPathParts: undefined, // passing undefined to delete in this folderbranch only
           deletePathParts: restPathPartsDeleted,
           addObj,
+          addKeepIfEmpty,
+          deleteKeepIfNotEmpty,
         });
 
         if (newSubtreeOid === entry.oid) {
@@ -322,6 +338,18 @@ export async function buildUpdatedTree({
         // we are at the end of the recrusion for deletion
         // delete the entry at index
         newEntries.splice(idx, 1);
+
+        if (newEntries.length === 0 && addKeepIfEmpty) {
+          const emptyBlob = new Uint8Array(0);
+          const keepOid = await git.writeBlob({ fs, dir, blob: emptyBlob });
+          newEntries.push({
+            mode: '100644',
+            oid: keepOid,
+            path: keepFilename,
+            type: 'blob',
+          });
+          // return undefined;
+        }
       }
       entryToMove = entry;
     }
@@ -345,6 +373,8 @@ export async function buildUpdatedTree({
           addPathParts: restPathPartsAdded, // passing undefined to delete in this folderbranch only
           deletePathParts: undefined,
           addObj,
+          addKeepIfEmpty,
+          deleteKeepIfNotEmpty,
         });
 
         if (newSubtreeOid === undefined) {
@@ -365,20 +395,50 @@ export async function buildUpdatedTree({
             newEntries[idx] = treeEntry;
           } else {
             newEntries.push(treeEntry);
+            if (deleteKeepIfNotEmpty && newEntries.length > 1) {
+              const keepIdx = newEntries.findIndex(
+                e => e.path === keepFilename
+              );
+              if (keepIdx !== -1) {
+                newEntries.splice(keepIdx, 1);
+              }
+            }
           }
         }
       } else {
         updated = true;
-        const treeEntry = {
-          mode: addObj!.type === 'tree' ? '040000' : '100644', // mode for file
-          path: currentPathPartAdded,
-          oid: addObj!.oid,
-          type: addObj!.type,
-        };
-        if (idx !== -1) {
-          newEntries[idx] = treeEntry;
-        } else {
-          newEntries.push(treeEntry);
+        if (addObj) {
+          const treeEntry = {
+            mode: addObj!.type === 'tree' ? '040000' : '100644', // mode for file
+            path: currentPathPartAdded,
+            oid: addObj!.oid,
+            type: addObj!.type,
+          };
+          if (idx !== -1) {
+            newEntries[idx] = treeEntry;
+          } else {
+            if (deleteKeepIfNotEmpty && newEntries.length > 0) {
+              const keepIdx = newEntries.findIndex(
+                e => e.path === keepFilename
+              );
+              
+              if (keepIdx !== -1) {
+                newEntries.splice(keepIdx, 1);
+              }
+            }
+            newEntries.push(treeEntry);
+          }
+        }
+
+        if (addKeepIfEmpty && newEntries.length === 0) {
+          const emptyBlob = new Uint8Array(0);
+          const keepOid = await git.writeBlob({ fs, dir, blob: emptyBlob });
+          newEntries.push({
+            mode: '100644',
+            oid: keepOid,
+            path: keepFilename,
+            type: 'blob',
+          });
         }
       }
     }

@@ -99,6 +99,7 @@ export class CompositeFs {
   subFilesystems: CompositeSubFs[] = [];
   parentFs: CompositeFs | undefined;
   name: string;
+  defaultBranch: string;
 
   pathToFileDescriptors: Map<
     /** path */
@@ -118,15 +119,18 @@ export class CompositeFs {
     parentFs,
     storageFs,
     gitRoot,
+    defaultBranch = 'main',
   }: {
     name: string;
     parentFs: CompositeFs | undefined;
     storageFs: typeof nodeFs | undefined;
     gitRoot: string;
+    defaultBranch?: string;
   }) {
     this.name = name;
     this.parentFs = parentFs;
     this.gitRoot = gitRoot;
+    this.defaultBranch = defaultBranch;
 
     this.promises = {
       access: this.access.bind(this),
@@ -264,13 +268,6 @@ export class CompositeFs {
    * @returns
    */
   async readdir(dirPath: nodeFs.PathLike, options?: any) {
-    const responsibleFs = await this.getResponsibleFs(dirPath);
-
-    // in case of the passsThrough fs - we don't enrich the result
-    if (responsibleFs !== this.passThroughFileSystem) {
-      return responsibleFs.readdir(dirPath, options);
-    }
-
     // Create a Union of all files from the filesystems
     // NOTE - for the list of filenames only this is enought
     // -> for stats we need to skip files we already got from a previous subFs
@@ -288,19 +285,25 @@ export class CompositeFs {
       }
     }
 
-    const passthroughEntries = await this.passThroughFileSystem.readdir(
-      dirPath,
-      options
-    );
+    try {
+      const passthroughEntries = await this.passThroughFileSystem.readdir(
+        dirPath,
+        options
+      );
 
-    for (const fileName of passthroughEntries) {
-      // only add non ephemeral Files here
-      if (
-        !(await this.ephemeralFilesFileSystem?.responsible(
-          (dirPath == '/' ? '' : dirPath) + '/' + fileName
-        ))
-      ) {
-        fileNames.add(fileName);
+      for (const fileName of passthroughEntries) {
+        // only add non ephemeral Files here
+        if (
+          !(await this.ephemeralFilesFileSystem?.responsible(
+            (dirPath == '/' ? '' : dirPath) + '/' + fileName
+          ))
+        ) {
+          fileNames.add(fileName);
+        }
+      }
+    } catch (err) {
+      if ((err as unknown as any).code !== 'ENOENT') {
+        throw new Error('error reading ephemeral fs: ' + err);
       }
     }
 
@@ -315,7 +318,9 @@ export class CompositeFs {
         fileNames.add(fileName);
       }
     } catch (err) {
-      console.log((err as unknown as any).code);
+      if ((err as unknown as any).code !== 'ENOENT') {
+        throw new Error('error reading ephemeral fs: ' + err);
+      }
     }
 
     for (const fileName of fileNames) {
@@ -343,15 +348,22 @@ export class CompositeFs {
   }
 
   async close(fh: CompositFsFileHandle): Promise<void> {
-    for (const [filePath, handles] of this.pathToFileDescriptors.entries()) {
-      const index = handles.indexOf(fh.fd);
-      if (index !== -1) {
-        handles.splice(index, 1);
-        if (handles.length === 0) {
-          this.pathToFileDescriptors.delete(filePath);
+    try {
+      await fh.delegate.close(fh);
+    } catch (error) {
+      throw error;
+    } finally {
+      for (const [filePath, handles] of this.pathToFileDescriptors.entries()) {
+        const index = handles.indexOf(fh.fd);
+        if (index !== -1) {
+          handles.splice(index, 1);
+          if (handles.length === 0) {
+            this.pathToFileDescriptors.delete(filePath);
+          }
+          break;
         }
-        break;
       }
+      this.openFileHandles.delete(fh.fd);
     }
   }
 

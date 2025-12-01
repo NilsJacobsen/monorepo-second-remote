@@ -152,6 +152,7 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
     content,
     cacheFs,
     pathParams,
+    author,
   }) => {
     // Parse the path to get branch name and file path
     if (pathParams.branchName === undefined) {
@@ -254,18 +255,13 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
       message: commitMessage,
       tree: currentTree.oid,
       noUpdateBranch: true,
+      author,
       // TODO only reference the branch commit if the commit has changed since last operation commit referencing the branch commit
       parent: branchUnchanged
         ? firstOperation
           ? [branchCommit, branchCommit]
           : [operationBranchCommit]
         : [operationBranchCommit, branchCommit],
-      author: {
-        name: 'GitLegitFs',
-        email: 'gitlegit@example.com',
-        timestamp: Math.floor(Date.now() / 1000),
-        timezoneOffset: 0,
-      },
     });
 
     // Update the branch reference

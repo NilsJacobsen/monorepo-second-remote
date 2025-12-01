@@ -1,69 +1,97 @@
 import git, { FsClient } from 'isomorphic-git';
 import http from 'isomorphic-git/http/node';
+import { LegitAuth } from './sessionManager.js';
 
-function normalizeRemoteUrl(remoteUrl: string): string {
-  // Matches: git@github.com:owner/repo.git
-  const sshPattern = /^git@([^:]+):(.+)$/;
-  const match = remoteUrl.match(sshPattern);
+const remote = 'legit';
 
-  if (match) {
-    const host = match[1]; // e.g. github.com
-    const path = match[2]; // e.g. martin-lysk/sync.git
-    return `https://${host}/${path}`;
-  }
+// const createHttpHandler = {
+//   async request(url: any, options: any ) {
+//     const auth = Buffer
+//       .from(`${username}:${password}`)
+//       .toString('base64')
 
-  // Already HTTPS or something else → leave unchanged
-  return remoteUrl;
-}
+//     const headers = {
+//       ...(options.headers || {}),
+//       Authorization: `Basic ${auth}`,
+//     };
 
-export const createGitSyncService = ({
+//     // Call the underlying http client
+//     return http.request(url, { ...options, headers });
+//   }
+// };
+
+export const createLegitSyncService = ({
   fs,
   gitRepoPath,
-  originPrefix,
-  corsProxy,
-  user,
-  password,
+  serverUrl = 'https://hub.legitcontrol.com',
+  auth,
+  anonymousBranch,
 }: {
   fs: FsClient;
   gitRepoPath: string;
-  originPrefix: string;
-  corsProxy?: string | undefined;
-  user: string;
-  password: string;
+  serverUrl?: string;
+  auth: LegitAuth;
+  anonymousBranch: string;
 }) => {
   let running = false;
 
-  let lastPushedCommit: string | undefined = undefined;
-
-  let remoteUrl: string | undefined = undefined;
-
-  async function pull() {
-    // console.log(
-    //   'monitor Pull - fetching changes from remote... ' + remoteUrl,
-    //   'password ' + password
-    // );
-    let result = await git.fetch({
+  async function loadBranch(branch: string) {
+    const token = await auth.getMaxAccessTokenForBranch(branch);
+    // later check if the token kan do enough here
+    if (!token) {
+      throw new Error(`No access token for branch ${branch}`);
+    }
+    await git.fetch({
       fs,
       http,
       dir: gitRepoPath,
-      url: remoteUrl!,
-      corsProxy,
-      // we fetch all branches
-      // ref,
-      //   singleBranch: true,
-      onAuth: () => ({
-        username: user,
-        password: password,
-      }),
+      singleBranch: true,
+      ref: `${branch}`,
+      remote,
+      url: serverUrl!,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     });
 
-    const remote = 'origin';
+    const remoteCommit = await git.resolveRef({
+      fs,
+      dir: gitRepoPath,
+      ref: `${remote}/${branch}`,
+    });
+
+    await git.writeRef({
+      fs,
+      dir: gitRepoPath,
+      ref: `refs/heads/${branch}`,
+      value: remoteCommit,
+    });
+  }
+
+  let unpushedRefs: string[] = [];
+
+  async function pull() {
+    // NOTE for now we take any token - later we should check what we are allowed to fetch
+    const token = await auth.getMaxAccessTokenForBranch('todo');
+
+    await git.fetch({
+      fs,
+      http,
+      dir: gitRepoPath,
+      remote,
+      url: serverUrl!,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
 
     const localRefs = await git.listBranches({ fs, dir: gitRepoPath });
 
-    let unpushedRefs = [];
-
     for (const localRef of localRefs) {
+      if (localRef === anonymousBranch) {
+        continue;
+      }
+
       // find branches that don't exist remote (should be added - not implicit for now!)
       // find branches that exist remote but there head differs
 
@@ -96,7 +124,6 @@ export const createGitSyncService = ({
         // Four cases exist:
         if (localCommit === remoteCommit) {
           // 1. Both are identical -> no-op
-
           // console.log(`branch ${localRef} in sync`);
         } else {
           const mergeBase = await git.findMergeBase({
@@ -164,14 +191,9 @@ export const createGitSyncService = ({
             unpushedRefs.push(localRef);
           }
         }
-      } else {
+      } else if (localCommit && !remoteCommit) {
+        unpushedRefs.push(localRef);
       }
-    }
-
-    if (unpushedRefs.length === 0) {
-      return;
-    } else {
-      await push(unpushedRefs);
     }
 
     // const resolvedConflicts: string[] = [];
@@ -211,33 +233,61 @@ export const createGitSyncService = ({
   }
 
   async function push(branchesToPush: string[]) {
+    if ((await auth.getUser()).type === 'local') {
+      // local users cant push
+      return;
+    }
+
     // console.log('monitor push - pushing...');
     for (const branch of branchesToPush) {
+      const token = await auth.getMaxAccessTokenForBranch(branch);
       await git.push({
         fs: fs,
         http,
         dir: gitRepoPath,
-        corsProxy,
-        url: remoteUrl!,
+        remote,
+        url: serverUrl!,
         ref: branch,
-        onAuth: () => ({
-          username: user,
-          password: password,
-        }),
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
     }
   }
 
-  async function monitorChanges() {
-    let value = await git.getConfig({
+  let lastPushPromise: Promise<void> = Promise.resolve();
+
+  async function sequentialPush(branchesToPush: string[]) {
+    lastPushPromise = lastPushPromise.then(() => push(branchesToPush));
+    await lastPushPromise;
+  }
+
+  async function pullPushTick() {
+    const existing = await git.getConfig({
       fs,
       dir: gitRepoPath,
-      path: 'remote.origin.url',
+      path: `remote.${remote}.fetch`,
     });
-    remoteUrl = normalizeRemoteUrl(value);
+
+    if (!existing) {
+      await git.setConfig({
+        fs,
+        dir: gitRepoPath,
+        path: `remote.${remote}.fetch`,
+        value: `+refs/heads/*:refs/remotes/${remote}/*`,
+      });
+    }
 
     try {
       await pull();
+      // TODO this filters any brounc with anonymous - need a better way to handle this
+      let branchesToPush = [...new Set(unpushedRefs)].filter(
+        v => v.indexOf(anonymousBranch) === -1
+      );
+
+      await sequentialPush(branchesToPush);
+
+      unpushedRefs = [];
       // Get the current commit SHA
       // const currentCommitSha = await git.resolveRef({
       //   fs: fs,
@@ -263,42 +313,32 @@ export const createGitSyncService = ({
     } finally {
       // Schedule the next execution after 1 second
       if (running) {
-        setTimeout(monitorChanges, 1000);
+        setTimeout(pullPushTick, 1000);
       }
     }
   }
 
-  function startPolling() {
+  function startSync() {
     running = true;
-    monitorChanges();
+    pullPushTick();
   }
 
-  function stopPolling() {
+  function stopSync() {
     running = false;
   }
 
   return {
-    clone: async (url: string) => {
-      return git.clone({
-        fs,
-        http,
-        corsProxy,
-        dir: gitRepoPath,
-        url,
-        onAuth: () => ({
-          username: user,
-          password: password,
-        }),
-      });
-    },
     start: () => {
       if (!running) {
-        startPolling();
+        startSync();
         running = true;
       }
     },
     stop: () => {
-      stopPolling();
+      stopSync();
     },
+    isRunning: () => running,
+    loadBranch,
+    sequentialPush,
   };
 };

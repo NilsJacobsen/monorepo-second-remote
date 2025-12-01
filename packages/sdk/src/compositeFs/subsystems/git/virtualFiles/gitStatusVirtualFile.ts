@@ -21,7 +21,7 @@ export const gitStatusVirtualFile: VirtualFileDefinition = {
   getStats: async args => {
     const gitDir = args.gitRoot + '/' + '.git';
     try {
-      const gitStats = await args.fs.stat(gitDir);
+      const gitStats = await args.nodeFs.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT

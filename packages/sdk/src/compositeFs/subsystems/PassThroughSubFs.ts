@@ -79,6 +79,7 @@ export class PassThroughSubFs extends BaseCompositeSubFs {
 
     const filehandle = new CompositFsFileHandle({
       fs: this,
+      compositeFs: this.compositFs,
       subFsFileDescriptor: fh.fd,
       parentFsFileDescriptors: [fh.fd],
     });
@@ -193,17 +194,11 @@ export class PassThroughSubFs extends BaseCompositeSubFs {
   }
 
   override async close(fh: CompositFsFileHandle): Promise<void> {
-    // delegate for the filehandle close function:
-    // close the fubfs filehandle it self (xsync?)
-    // close all parentFileHandles
-
     const fileHandle = this.openFh.get(fh.subFsFileDescriptor);
     if (fileHandle) {
       await fileHandle.close();
       this.openFh.delete(fh.subFsFileDescriptor);
     }
-
-    this.compositFs.close(fh);
   }
 
   override async dataSync(fh: CompositFsFileHandle): Promise<void> {
