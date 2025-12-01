@@ -100,7 +100,9 @@ export const LegitProvider = ({
           headRef.current = newHead;
           setHead(newHead);
         }
-      } catch (err) {}
+      } catch (err) {
+        setError(err as Error);
+      }
     }, DEFAULT_POLL_INTERVAL);
 
     return () => {
