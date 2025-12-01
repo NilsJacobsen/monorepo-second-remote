@@ -281,11 +281,13 @@ export const createLegitSyncService = ({
     try {
       await pull();
       // TODO this filters any brounc with anonymous - need a better way to handle this
-      let branchesToPush = unpushedRefs.filter(
+      let branchesToPush = [...new Set(unpushedRefs)].filter(
         v => v.indexOf(anonymousBranch) === -1
       );
 
       await sequentialPush(branchesToPush);
+
+      unpushedRefs = [];
       // Get the current commit SHA
       // const currentCommitSha = await git.resolveRef({
       //   fs: fs,
