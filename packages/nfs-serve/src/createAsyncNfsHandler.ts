@@ -1188,6 +1188,26 @@ export const createAsyncNfsHandler = (args: {
 
       if (fsHandle === undefined) {
         const path = fileHandleManager.getPathFromHandle(handle)!;
+
+        const pathStats = await asyncFs.stat(path);
+        if (pathStats.isDirectory()) {
+          // Throw if all attribute properties are undefined
+          if (
+            attributes.mode !== undefined &&
+            attributes.uid !== undefined &&
+            attributes.gid !== undefined &&
+            attributes.size !== undefined &&
+            attributes.atime !== undefined &&
+            attributes.mtime !== undefined
+          ) {
+            throw new Error('At least one attribute property must be defined');
+          }
+
+          return {
+            status: nfsstat3.OK,
+            stats: pathStats as any,
+          };
+        }
         nfsHandle.fsHandle.fh = await asyncFs.open(path, 'a+');
         fsHandle = nfsHandle.fsHandle.fh;
       }

@@ -90,8 +90,8 @@ export const LegitProvider = ({
     (window as any).legitFs = legitFs;
 
     const pollHead = setInterval(async () => {
+      const currentBranch = await legitFs.getCurrentBranch();
       try {
-        const currentBranch = await legitFs.getCurrentBranch();
         const newHead = await legitFs.promises.readFile(
           `/.legit/branches/${currentBranch}/.legit/head`,
           'utf8'
@@ -100,9 +100,7 @@ export const LegitProvider = ({
           headRef.current = newHead;
           setHead(newHead);
         }
-      } catch (err) {
-        setError(err as Error);
-      }
+      } catch (err) {}
     }, DEFAULT_POLL_INTERVAL);
 
     return () => {
