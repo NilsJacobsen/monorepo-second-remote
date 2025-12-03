@@ -196,7 +196,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   private static pathRouter = new LegitPathRouter({
     '.legit': {
       '.': legitVirtualFile,
-
+      operation: gitBranchOperationVirtualFile,
+      head: gitBranchHeadVirtualFile,
+      operationHead: gitBranchOperationHeadVirtualFile,
+      operationHistory: gitBranchOperationsVirtualFile,
+      history: gitBranchHistory,
       branches: {
         '.': gitBranchesListVirtualFile,
         '[branchName]': {
@@ -207,8 +211,8 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
             head: gitBranchHeadVirtualFile,
             operationHead: gitBranchOperationHeadVirtualFile,
             operationHistory: gitBranchOperationsVirtualFile,
-            threadName: getThreadName,
             history: gitBranchHistory,
+            threadName: getThreadName,
           },
           '[[...filePath]]': gitBranchFileVirtualFile,
         },
