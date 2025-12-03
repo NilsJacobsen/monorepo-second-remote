@@ -185,6 +185,14 @@ Context: the hole thing is a non published poc so no need to migrate - just an i
 export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   private static readonly LEGIT_DIR = '.legit';
 
+  /**
+   * how to handle branches with slashes in them?
+   *
+   * Lets say i have a branch called my/branch/name
+   * this means i am not allowed to have a branch called my because this would conflict with
+   */
+
+  // .legit/branches/main/
   private static pathRouter = new LegitPathRouter({
     '.legit': {
       '.': legitVirtualFile,
@@ -192,6 +200,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       branches: {
         '.': gitBranchesListVirtualFile,
         '[branchName]': {
+          // branch names could include / so this is not a good delimiter here
           '.legit': {
             '.': legitVirtualFile,
             operation: gitBranchOperationVirtualFile,
@@ -223,6 +232,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       //   }
       // }
     },
+    '[[...filePath]]': gitBranchFileVirtualFile,
   });
 
   private memFs: IFs;
@@ -289,7 +299,8 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   }
 
   async responsible(filePath: string): Promise<boolean> {
-    return this.isLegitPath(filePath);
+    return true;
+    // return true this.isLegitPath(filePath);
   }
 
   private isLegitPath(path: string): boolean {
@@ -300,13 +311,18 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   }
 
   private getRouteHandler(filePath: string): MatchResult | undefined {
-    const firstLegitIndex = filePath.indexOf(`/${GitSubFs.LEGIT_DIR}`);
+    // Remove gitRoot prefix from filePath if present
+    let normalizedPath = filePath;
+    if (this.gitRoot && filePath.startsWith(this.gitRoot)) {
+      normalizedPath = filePath.slice(this.gitRoot.length + 1);
+    }
+    const firstLegitIndex = normalizedPath.indexOf(`/${GitSubFs.LEGIT_DIR}`);
     if (firstLegitIndex === -1) {
-      throw new Error('Not a legit path');
+      return GitSubFs.pathRouter.match(normalizedPath);
     }
 
-    const filePathWithoutLegit = filePath.slice(firstLegitIndex + 1);
-    return GitSubFs.pathRouter.match(filePathWithoutLegit);
+    const filePathWithoutLegit = normalizedPath.slice(firstLegitIndex + 1);
+    return GitSubFs.pathRouter.match(normalizedPath);
   }
 
   /**
@@ -730,9 +746,9 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   ): Promise<string[] | Buffer[] | nodeFs.Dirent[]> {
     const pathStr = path.toString();
 
-    if (!this.isLegitPath(pathStr)) {
-      return ['.legit'] as string[];
-    }
+    // if (!this.isLegitPath(pathStr)) {
+    //   return ['.legit'] as string[];
+    // }
 
     const parsed = this.getRouteHandler(pathStr);
 

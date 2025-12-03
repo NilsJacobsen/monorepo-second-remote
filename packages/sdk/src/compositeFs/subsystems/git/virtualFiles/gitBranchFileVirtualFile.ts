@@ -74,6 +74,10 @@ async function buildTreeWithoutFile(
   });
 }
 
+async function getCurrentBranch(): Promise<string> {
+  return 'main';
+}
+
 /**
  * # How to present an empyt folder in git
  *
@@ -158,7 +162,8 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
 
   getStats: async ({ gitRoot, nodeFs, filePath, cacheFs, pathParams }) => {
     if (pathParams.branchName === undefined) {
-      throw new Error('branchName should be in pathParams');
+      pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     // if (pathParams.filePath !== undefined) {
@@ -296,7 +301,8 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
   },
   getFile: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
     if (pathParams.branchName === undefined) {
-      throw new Error('branchName should be in pathParams');
+      pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     let memoryDirEntries: string[] = [];
@@ -416,8 +422,9 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     pathParams,
     author,
   }) => {
-    if (!pathParams.branchName) {
-      throw new Error('branchName should be in pathParams');
+    if (pathParams.branchName === undefined) {
+      pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     if (!pathParams.filePath) {
@@ -484,7 +491,8 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
   }) => {
     // Parse the path to get branch name and file path
     if (pathParams.branchName === undefined) {
-      throw new Error('branchName should be in pathParams');
+      pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     if (pathParams.filePath === undefined) {
@@ -595,7 +603,8 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     // Parse the path to get branch name and file path
 
     if (pathParams.branchName === undefined) {
-      throw new Error('branchName should be in pathParams');
+      pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     if (pathParams.filePath === undefined) {
@@ -712,7 +721,8 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
   ): Promise<void> {
     // Parse the path to get branch name and file path
     if (args.pathParams.branchName === undefined) {
-      throw new Error('branchName should be in pathParams');
+      args.pathParams.branchName = await getCurrentBranch();
+      // throw new Error('branchName should be in pathParams');
     }
 
     if (args.pathParams.filePath === undefined) {
