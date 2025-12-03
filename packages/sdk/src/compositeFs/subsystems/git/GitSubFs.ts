@@ -45,6 +45,7 @@ import { gitBranchOperationsVirtualFile } from './virtualFiles/operations/gitBra
 import { getThreadName } from './virtualFiles/operations/getThreadName.js';
 import { gitBranchHistory } from './virtualFiles/gitBranchHistory.js';
 import { gitBranchOperationHeadVirtualFile } from './virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
+import { gitCurrentBranchVirtualFile } from './virtualFiles/gitCurrentBranchVirtualFile.js';
 
 const handlers = {
   noAdditionalFiles: () => [],
@@ -201,6 +202,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       operationHead: gitBranchOperationHeadVirtualFile,
       operationHistory: gitBranchOperationsVirtualFile,
       history: gitBranchHistory,
+      currentBranch: gitCurrentBranchVirtualFile,
       branches: {
         '.': gitBranchesListVirtualFile,
         '[branchName]': {
