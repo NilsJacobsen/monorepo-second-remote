@@ -7,7 +7,7 @@ const table = require('markdown-table')
 
 const git = require('../..')
 
-const dir = path.join(__dirname, '..', '..')
+const dir = path.join(__dirname, '..', '..', '..', '..', '..')
 const thisFile = path.relative(dir, __filename).replace(/\\/g, '/')
 const ref = process.argv[2] || 'HEAD'
 
@@ -343,6 +343,8 @@ console.log('done')
   return text
 }
 
+const subtreeRelPath = 'packages/3rd-party/isomorphic-git'
+
 ;(async () => {
   const docDir = path.join(__dirname, '..', '..', 'docs')
   const docDir2 = path.join(
@@ -362,12 +364,13 @@ console.log('done')
   gitignoreContent = gitignoreContent.slice(0, idx)
   gitignoreContent += '# AUTO-GENERATED DOCS --- DO NOT EDIT BELOW THIS LINE\n'
 
+  // throw new Error('Regenerate docs using typedoc instead of jsdoc' + dir)
   const oid = await git.resolveRef({ fs, dir, ref })
   const { tree } = await git.readTree({
     fs,
     dir,
     oid,
-    filepath: 'src/api',
+    filepath: subtreeRelPath + 'src/api',
   })
   const entries = tree.filter(
     entry => entry.type === 'blob' && !entry.path.startsWith('_')
@@ -395,11 +398,13 @@ console.log('done')
   }
 
   // Generate the shared typedefs
-  await processEntry('src', 'typedefs.js')
-  await processEntry('src', 'typedefs-http.js')
+  await processEntry(subtreeRelPath + 'src', 'typedefs.js')
+  await processEntry(subtreeRelPath + 'src', 'typedefs-http.js')
 
   // Generate all the docs
-  await Promise.all(entries.map(entry => processEntry('src/api', entry.path)))
+  await Promise.all(
+    entries.map(entry => processEntry(subtreeRelPath + 'src/api', entry.path))
+  )
 
   docs.sort()
   gitignoreContent += docs.join('\n') + '\n'

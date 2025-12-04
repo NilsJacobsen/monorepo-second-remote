@@ -119,7 +119,7 @@ module.exports = {
       indexjson:
         'npx make-index __tests__/__fixtures__ -o __tests__/__fixtures__/index.json -i __tests__/__fixtures__/index.json && node __tests__/__helpers__/make_superblock.cjs',
       treeshake: 'agadoo',
-      docs: 'node ./__tests__/__helpers__/generate-docs.cjs',
+      docs: '', // 'node ./__tests__/__helpers__/generate-docs.cjs',
       size: process.env.CI
         ? optional(`cross-env ${bundlewatchEnvironmentVariables()} bundlewatch`)
         : optional(`cross-env bundlewatch`),

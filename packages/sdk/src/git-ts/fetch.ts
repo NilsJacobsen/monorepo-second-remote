@@ -52,8 +52,8 @@ import { writeUploadPackRequest } from '../wire/writeUploadPackRequest.js'
  * @param {string} [args.remote]
  * @param {boolean} [args.singleBranch = false]
  * @param {boolean} [args.tags = false]
- * @param {number|null} [args.depth]
- * @param {Date|null} [args.since]
+ * @param {number} [args.depth]
+ * @param {Date} [args.since]
  * @param {string[]} [args.exclude = []]
  * @param {boolean} [args.relative = false]
  * @param {Object<string, string>} [args.headers]
@@ -110,7 +110,6 @@ export async function _fetch({
   }
 
   const GitRemoteHTTP = GitRemoteManager.getRemoteHelperFor({ url })
-  // @ts-ignore -- missing types
   const remoteHTTP = await GitRemoteHTTP.discover({
     http,
     onAuth,
@@ -146,7 +145,6 @@ export async function _fetch({
     throw new RemoteCapabilityError('deepen-relative', 'relative')
   }
   // Figure out the SHA for the requested ref
-  // @ts-ignore -- missing types
   const { oid, fullref } = GitRefManager.resolveAgainstMap({
     ref: remoteRef,
     map: remoteRefs,
@@ -194,7 +192,6 @@ export async function _fetch({
   let haves = []
   for (let ref of haveRefs) {
     try {
-      // @ts-ignore - ref is expected when single branch is true
       ref = await GitRefManager.expand({ fs, gitdir, ref })
       const oid = await GitRefManager.resolve({ fs, gitdir, ref })
       if (await hasObject({ fs, cache, gitdir, oid })) {
