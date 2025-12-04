@@ -560,6 +560,81 @@ export async function buildUpdatedTreeFromArgs({
   });
 }
 
+// Recursive function to find a git object at a specific path
+async function findGitObjectAtPath(
+  nodeFs: any,
+  gitRoot: string,
+  treeOid: string,
+  pathParts: string[],
+  partIndex: number = 0,
+  cache: any = {}
+): Promise<
+  | { type: 'tree'; oid: string; entries: string[] }
+  | { type: 'blob'; oid: string }
+  | undefined
+> {
+  // Read the current tree
+  const { tree } = await git.readTree({
+    fs: nodeFs,
+    dir: gitRoot,
+    oid: treeOid,
+    cache: cache,
+  });
+
+  // If we're at the target path and this is a tree
+  if (pathParts.length === partIndex) {
+    return {
+      type: 'tree',
+      entries: tree.map(entry => entry.path),
+      oid: treeOid,
+    };
+  }
+
+  const nextPart = pathParts[partIndex];
+
+  // Find the entry in the current tree that matches the next path part
+  const entry = tree.find(treeEntry => treeEntry.path === nextPart);
+
+  if (!entry) {
+    return undefined;
+  }
+
+  // If we're at the final path part
+  if (pathParts.length === partIndex + 1) {
+    if (entry.type === 'blob') {
+      return {
+        type: 'blob',
+        oid: entry.oid,
+      };
+    } else if (entry.type === 'tree') {
+      // For tree entries at the final path, read the tree to get entries
+      const subTree = await git.readTree({
+        fs: nodeFs,
+        dir: gitRoot,
+        oid: entry.oid,
+        cache: cache,
+      });
+      return {
+        type: 'tree',
+        entries: subTree.tree.map(subEntry => subEntry.path),
+        oid: subTree.oid,
+      };
+    }
+  } else if (entry.type === 'tree') {
+    // Continue recursing into subdirectories
+    return await findGitObjectAtPath(
+      nodeFs,
+      gitRoot,
+      entry.oid,
+      pathParts,
+      partIndex + 1,
+      cache
+    );
+  }
+
+  return undefined;
+}
+
 export async function resolveGitObjAtPath({
   filePath,
   gitRoot,
@@ -592,46 +667,16 @@ export async function resolveGitObjAtPath({
     };
   }
 
-  // Walk the tree to find the file
-  const results = await git.walk({
-    fs: nodeFs,
-    dir: gitRoot,
-    trees: [git.TREE({ ref: commitSha })],
-    cache: cache,
-    map: async (filepath, [entry]) => {
-      if (filepath === pathParams.filePath && entry) {
-        const type = await entry.type();
-        if (type === 'blob') {
-          return {
-            type: 'blob',
-            oid: await entry.oid(),
-          };
-        } else if (type == 'tree') {
-          const tree = await git.readTree({
-            fs: nodeFs,
-            dir: gitRoot,
-            oid: await entry.oid(),
-            cache: cache,
-          });
-          const entries = tree.tree.map(entry => entry.path);
-          return {
-            type: 'tree',
-            entries: entries,
-            oid: tree.oid,
-          };
-        }
-      }
-      return;
-    },
-  });
+  const pathParts = pathParams.filePath ? pathParams.filePath.split('/') : [];
 
-  const fileOrFolder = results.find(
-    (
-      r:
-        | { type: 'tree'; entries: string[] }
-        | { type: 'blob'; oid: string }
-        | undefined
-    ) => r !== undefined
+  // Use recursive function to find the file or folder at the specified path
+  const fileOrFolder = await findGitObjectAtPath(
+    nodeFs,
+    gitRoot,
+    commitSha,
+    pathParts,
+    0,
+    cache
   );
 
   return fileOrFolder;
