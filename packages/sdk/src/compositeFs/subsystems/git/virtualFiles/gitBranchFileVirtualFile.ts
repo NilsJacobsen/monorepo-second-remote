@@ -3,6 +3,7 @@ import {
   tryResolveRef,
   resolveGitObjAtPath,
   buildUpdatedTree,
+  getGitCacheFromArgs,
 } from './utils.js';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
@@ -10,6 +11,19 @@ import { ENOENTError } from '../../../errors/ENOENTError.js';
 import * as nodeFs from 'node:fs';
 import { CompositeFs } from '../../../CompositeFs.js';
 import { getCurrentBranch } from './getCurrentBranch.js';
+
+function getGitCacheFromFs(fs: any): any {
+  // If it's a CompositeFs with gitCache, use it
+  if (fs && fs.gitCache !== undefined) {
+    return fs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (fs && fs.parentFs) {
+    return getGitCacheFromFs(fs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
 
 // .legit/branches/[branch-name]/[[...filepath]] -> file or folder at path in branch
 
@@ -29,6 +43,7 @@ async function buildTreeWithoutFile(
     fs: compositFs,
     dir: gitRoot,
     oid: treeOid,
+    cache: getGitCacheFromFs(compositFs),
   });
 
   let newEntries = [...tree];

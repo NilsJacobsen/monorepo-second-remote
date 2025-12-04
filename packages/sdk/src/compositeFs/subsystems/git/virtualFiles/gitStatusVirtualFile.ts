@@ -3,6 +3,32 @@ import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
 import * as nodeFs from 'node:fs';
 
+function getGitCacheFromArgs(args: VirtualFileArgs): any {
+  // Access gitCache through the userSpaceFs hierarchy
+  if (args.userSpaceFs && args.userSpaceFs.gitCache !== undefined) {
+    return args.userSpaceFs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (args.userSpaceFs && args.userSpaceFs.parentFs) {
+    return getGitCacheFromFs(args.userSpaceFs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
+
+function getGitCacheFromFs(fs: any): any {
+  // If it's a CompositeFs with gitCache, use it
+  if (fs && fs.gitCache !== undefined) {
+    return fs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (fs && fs.parentFs) {
+    return getGitCacheFromFs(fs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
+
 export function getFileStatus(
   head: number,
   workdir: number,
@@ -28,19 +54,20 @@ export const gitStatusVirtualFile: VirtualFileDefinition = {
       throw new Error(`ENOENT: no such file or directory, stat '${gitDir}'`);
     }
   },
-  getFile: async ({ gitRoot, nodeFs }) => {
+  getFile: async ({ gitRoot, nodeFs, userSpaceFs }) => {
     // Get overall repository status
 
     try {
       const currentBranch =
-        (await git.currentBranch({ fs: nodeFs, dir: gitRoot })) || 'HEAD';
+        (await git.currentBranch({ fs: nodeFs, dir: gitRoot, cache: getGitCacheFromFs(userSpaceFs) })) || 'HEAD';
       const headCommit = await git.resolveRef({
         fs: nodeFs,
         dir: gitRoot,
         ref: 'HEAD',
+        cache: getGitCacheFromFs(userSpaceFs),
       });
 
-      const statusMatrix = await git.statusMatrix({ fs: nodeFs, dir: gitRoot });
+      const statusMatrix = await git.statusMatrix({ fs: nodeFs, dir: gitRoot, cache: getGitCacheFromFs(userSpaceFs) });
 
       const modifiedFiles = statusMatrix
         .filter(

@@ -9,6 +9,32 @@ import { VirtualFileArgs } from './gitVirtualFiles.js';
 import { IFs } from 'memfs';
 import { PathLike } from 'fs';
 
+function getGitCacheFromArgs(args: VirtualFileArgs): any {
+  // Access gitCache through the userSpaceFs hierarchy
+  if (args.userSpaceFs && args.userSpaceFs.gitCache !== undefined) {
+    return args.userSpaceFs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (args.userSpaceFs && args.userSpaceFs.parentFs) {
+    return getGitCacheFromFs(args.userSpaceFs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
+
+function getGitCacheFromFs(fs: any): any {
+  // If it's a CompositeFs with gitCache, use it
+  if (fs && fs.gitCache !== undefined) {
+    return fs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (fs && fs.parentFs) {
+    return getGitCacheFromFs(fs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
+
 export async function tryResolveRef(
   fs: FsClient,
   gitRoot: string,
@@ -21,6 +47,25 @@ export async function tryResolveRef(
       dir: gitRoot,
       ref: `refs/heads/${refName}`,
       cache: gitCache || {},
+    });
+    return branchCommit;
+  } catch (e) {
+    return undefined;
+  }
+}
+
+export async function tryResolveRefFromArgs(
+  fs: FsClient,
+  gitRoot: string,
+  refName: string,
+  args: VirtualFileArgs
+) {
+  try {
+    const branchCommit = await git.resolveRef({
+      fs: fs,
+      dir: gitRoot,
+      ref: `refs/heads/${refName}`,
+      cache: getGitCacheFromArgs(args),
     });
     return branchCommit;
   } catch (e) {
@@ -463,6 +508,53 @@ export async function buildUpdatedTree({
       return currentOid;
     }
   }
+}
+
+export async function buildUpdatedTreeFromArgs({
+  dir,
+  fs,
+  treeOid: currentOid,
+  deletePathParts,
+  addPathParts,
+  addObj,
+  addKeepIfEmpty,
+  deleteKeepIfNotEmpty,
+  keepFilename = '.keep',
+  args,
+}: {
+  dir: string;
+  fs: IFs;
+  treeOid: string | undefined;
+  deletePathParts: string[] | undefined;
+  addPathParts: string[] | undefined;
+  addObj:
+    | {
+        type: 'tree';
+        oid: string;
+        entries: string[];
+      }
+    | {
+        type: 'blob';
+        oid: string;
+      }
+    | undefined;
+  addKeepIfEmpty: boolean;
+  deleteKeepIfNotEmpty: boolean;
+  keepFilename?: string;
+  args: VirtualFileArgs;
+}): Promise<string | undefined> {
+  return await buildUpdatedTree({
+    dir,
+    fs,
+    treeOid: currentOid,
+    deletePathParts,
+    addPathParts,
+    addObj,
+    addKeepIfEmpty,
+    deleteKeepIfNotEmpty,
+    keepFilename,
+    gitCache: getGitCacheFromArgs(args),
+  });
 }
 
 export async function resolveGitObjAtPath({
