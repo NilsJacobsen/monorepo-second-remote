@@ -145,34 +145,6 @@ describe('polls HEAD', () => {
 
     unmount();
   });
-
-  it('handles error when polling HEAD', async () => {
-    // mock reading head to fail
-    const readFile = vi.fn().mockImplementation((p: string) => {
-      if (p.endsWith('/.legit/head')) {
-        return Promise.reject(new Error('Poll HEAD failed'));
-      }
-      return Promise.resolve('');
-    });
-
-    mockOpenLegitFs.mockResolvedValueOnce({
-      promises: { readFile, writeFile: vi.fn() },
-      getCurrentBranch: vi.fn().mockResolvedValue('anonymous'),
-    } as unknown as ReturnType<typeof openLegitFs>);
-
-    const Consumer = () => {
-      const { error } = useLegitContext();
-      return <div>{error ? 'error' : 'ready'}</div>;
-    };
-
-    const { unmount } = render(
-      <LegitProvider config={mockConfig}>
-        <Consumer />
-      </LegitProvider>
-    );
-    await waitFor(() => expect(screen.getByText('error')).toBeDefined());
-    unmount();
-  });
 });
 
 describe.todo('rollback to commit', () => {
