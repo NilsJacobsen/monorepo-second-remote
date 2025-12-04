@@ -106,7 +106,7 @@ export const LegitProvider = ({
           setHead(newHead);
         }
       } catch (err) {
-        setError(err as Error);
+        // setError(err as Error);
       }
     }, DEFAULT_POLL_INTERVAL);
 

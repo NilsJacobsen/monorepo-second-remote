@@ -147,10 +147,18 @@ export async function _fetch({
   }
   // Figure out the SHA for the requested ref
   // @ts-ignore -- missing types
-  const { oid, fullref } = GitRefManager.resolveAgainstMap({
-    ref: remoteRef,
-    map: remoteRefs,
-  })
+  let fullref = undefined
+  let oid = undefined
+  try {
+    const resolved = GitRefManager.resolveAgainstMap({
+      ref: remoteRef,
+      map: remoteRefs,
+    })
+    // @ts-ignore -- missing types
+    fullref = resolved.fullref
+    // @ts-ignore -- missing types
+    oid = resolved.oid
+  } catch (e) {}
   // Filter out refs we want to ignore: only keep ref we're cloning, HEAD, branches, and tags (if we're keeping them)
   for (const remoteRef of remoteRefs.keys()) {
     if (
@@ -310,20 +318,22 @@ export async function _fetch({
   // AWS CodeCommit doesn't list HEAD as a symref, but we can reverse engineer it
   // Find the SHA of the branch called HEAD
   if (response.HEAD === undefined) {
-    const { oid } = GitRefManager.resolveAgainstMap({
-      ref: 'HEAD',
-      map: remoteRefs,
-    })
-    // Use the name of the first branch that's not called HEAD that has
-    // the same SHA as the branch called HEAD.
-    for (const [key, value] of remoteRefs.entries()) {
-      if (key !== 'HEAD' && value === oid) {
-        response.HEAD = key
-        break
+    try {
+      const { oid } = GitRefManager.resolveAgainstMap({
+        ref: 'HEAD',
+        map: remoteRefs,
+      })
+      // Use the name of the first branch that's not called HEAD that has
+      // the same SHA as the branch called HEAD.
+      for (const [key, value] of remoteRefs.entries()) {
+        if (key !== 'HEAD' && value === oid) {
+          response.HEAD = key
+          break
+        }
       }
-    }
+    } catch (e) {}
   }
-  const noun = fullref.startsWith('refs/tags') ? 'tag' : 'branch'
+  const noun = fullref && fullref.startsWith('refs/tags') ? 'tag' : 'branch'
   response.FETCH_HEAD = {
     oid,
     description: `${noun} '${abbreviateRef(fullref)}' of ${url}`,
