@@ -4,6 +4,7 @@ import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 import * as nodeFs from 'node:fs';
 import { PathLike } from 'node:fs';
 import { toDirEntry } from './utils.js';
+import { encodeBranchNameForVfs } from './operations/nameEncoding.js';
 
 // .legit/branches -> list of branches
 
@@ -22,13 +23,7 @@ export const gitBranchesListVirtualFile: VirtualFileDefinition = {
   },
   getFile: async ({ gitRoot, nodeFs, filePath }) => {
     try {
-      const branches = (
-        await git.listBranches({ fs: nodeFs, dir: gitRoot })
-      ).filter(branch => branch.indexOf('/') === -1);
-      const currentBranch = await git.currentBranch({
-        fs: nodeFs,
-        dir: gitRoot,
-      });
+      const branches = await git.listBranches({ fs: nodeFs, dir: gitRoot });
 
       const branchesInfo = await Promise.all(
         branches.map(async branch => {
@@ -39,7 +34,7 @@ export const gitBranchesListVirtualFile: VirtualFileDefinition = {
           });
           return toDirEntry({
             parent: filePath,
-            name: branch,
+            name: encodeBranchNameForVfs(branch),
             isDir: true,
           });
         })

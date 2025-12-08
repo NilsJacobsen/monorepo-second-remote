@@ -9,7 +9,9 @@ import * as nodeFs from 'node:fs';
 
 import { IFs } from 'memfs';
 import { PathLike } from 'fs';
+
 import { IDir, IDirent } from 'memfs/lib/node/types/misc.js';
+import { decodeBranchNameFromVfs } from './operations/nameEncoding.js';
 
 export async function tryResolveRef(
   fs: FsClient,
@@ -20,7 +22,7 @@ export async function tryResolveRef(
     const branchCommit = await git.resolveRef({
       fs: fs,
       dir: gitRoot,
-      ref: `refs/heads/${refName}`,
+      ref: `refs/heads/${decodeBranchNameFromVfs(refName)}`,
     });
     return branchCommit;
   } catch (e) {
