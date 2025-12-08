@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume, createFsFromVolume } from 'memfs';
 import * as isogit from 'isomorphic-git';
 import { openLegitFs, openLegitFsWithMemoryFs } from './legitfs.js';
-import fs from 'fs';
 
 const repoPath = '/repo';
 const files = {
@@ -760,6 +759,22 @@ describe('openLegitFsWithMemoryFs', () => {
 
   it('should open a legitfs instance with memory fs', async () => {
     const legitfs = await openLegitFsWithMemoryFs();
+    const branches = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`,
+      'utf-8'
+    );
+    expect(branches).toContain('anonymous');
+  });
+});
+
+describe('top level legit', () => {
+  it('should open a legitfs instance with memory fs', async () => {
+    const memfsVolume = new Volume();
+    const _memfs = createFsFromVolume(memfsVolume);
+    legitfs = await openLegitFs({
+      storageFs: _memfs as any,
+      gitRoot: '/',
+    });
     const branches = await legitfs.promises.readdir(
       `${repoPath}/.legit/branches`,
       'utf-8'
