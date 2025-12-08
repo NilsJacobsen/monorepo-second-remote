@@ -785,14 +785,14 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
       const siblings = parsed?.staticSiblings ?? [];
 
-      // TODO check if result.content is an array already
-      let entries = result.content as string[];
-      if (entries && !Array.isArray(result.content)) {
-        entries = JSON.parse(result.content as string) as string[];
+      // @ts-ignore
+      if (options?.withFileTypes) {
+        // TODO implement Dirent return type
+        return result.content
       }
-
+     
       // Merge siblings and entries, remove duplicates, and sort POSIX-style
-      const allFolders = Array.from(new Set([...entries, ...siblings])).sort(
+      const allFolders = Array.from(new Set([...result.content, ...siblings])).sort(
         (a, b) =>
           a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
       );

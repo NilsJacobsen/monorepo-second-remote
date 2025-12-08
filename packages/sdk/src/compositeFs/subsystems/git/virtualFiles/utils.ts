@@ -5,9 +5,11 @@ import git, {
   TreeObject,
 } from 'isomorphic-git';
 import { VirtualFileArgs } from './gitVirtualFiles.js';
+import * as nodeFs from 'node:fs';
 
 import { IFs } from 'memfs';
 import { PathLike } from 'fs';
+import { IDir, IDirent } from 'memfs/lib/node/types/misc.js';
 
 export async function tryResolveRef(
   fs: FsClient,
@@ -421,7 +423,7 @@ export async function buildUpdatedTree({
               const keepIdx = newEntries.findIndex(
                 e => e.path === keepFilename
               );
-              
+
               if (keepIdx !== -1) {
                 newEntries.splice(keepIdx, 1);
               }
@@ -470,7 +472,7 @@ export async function resolveGitObjAtPath({
 }: Pick<VirtualFileArgs, 'filePath' | 'gitRoot' | 'nodeFs' | 'pathParams'> & {
   commitSha: string;
 }): Promise<
-  | { type: 'tree'; oid: string; entries: string[] }
+  | { type: 'tree'; oid: string; entries: IDirent[] }
   | { type: 'blob'; oid: string }
   | undefined
 > {
@@ -480,7 +482,13 @@ export async function resolveGitObjAtPath({
       dir: gitRoot,
       oid: commitSha,
     });
-    const entries = tree.tree.map(entry => entry.path);
+    const entries = tree.tree.map(entry =>
+      toDirEntry({
+        parent: filePath,
+        name: entry.path,
+        isDir: entry.type === 'tree',
+      })
+    );
     return {
       type: 'tree',
       entries: entries,
@@ -507,7 +515,13 @@ export async function resolveGitObjAtPath({
             dir: gitRoot,
             oid: await entry.oid(),
           });
-          const entries = tree.tree.map(entry => entry.path);
+          const entries = tree.tree.map(entry =>
+            toDirEntry({
+              parent: filePath,
+              name: entry.path,
+              isDir: entry.type === 'tree',
+            })
+          );
           return {
             type: 'tree',
             entries: entries,
@@ -522,11 +536,30 @@ export async function resolveGitObjAtPath({
   const fileOrFolder = results.find(
     (
       r:
-        | { type: 'tree'; entries: string[] }
+        | { type: 'tree'; entries: IDirent[] }
         | { type: 'blob'; oid: string }
         | undefined
     ) => r !== undefined
   );
 
   return fileOrFolder;
+}
+
+export function toDirEntry(args: {
+  parent: string;
+  name: string;
+  isDir: boolean;
+}): nodeFs.Dirent {
+  return {
+    name: args.name,
+    isFile: () => !args.isDir,
+    isDirectory: () => args.isDir,
+    isBlockDevice: () => true,
+    isCharacterDevice: () => false,
+    isSymbolicLink: () => false,
+    isFIFO: () => false,
+    isSocket: () => false,
+    parentPath: args.parent,
+    path: args.parent,
+  };
 }

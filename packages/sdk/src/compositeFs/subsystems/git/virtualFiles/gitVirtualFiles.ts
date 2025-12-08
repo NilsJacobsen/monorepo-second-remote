@@ -19,7 +19,7 @@ export type VirtualFile =
     }
   | {
       type: 'directory';
-      content: string[];
+      content: nodeFs.Dirent[];
       oid?: string | undefined;
       mode?: number;
     };

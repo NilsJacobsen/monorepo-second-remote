@@ -2,6 +2,7 @@ import git from 'isomorphic-git';
 
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 import * as nodeFs from 'node:fs';
+import { toDirEntry } from './utils.js';
 
 export const gitCommitVirtualFolder: VirtualFileDefinition = {
   type: 'gitCommitVirtualFolder',
@@ -55,7 +56,15 @@ export const gitCommitVirtualFolder: VirtualFileDefinition = {
           break;
         }
       }
-      const content = Array.from(fistTwo).sort();
+      const content = Array.from(fistTwo)
+        .sort()
+        .map(sha =>
+          toDirEntry({
+            parent: filePath,
+            name: sha,
+            isDir: true,
+          })
+        );
       return {
         type: 'directory',
         content,
@@ -70,7 +79,15 @@ export const gitCommitVirtualFolder: VirtualFileDefinition = {
         lastThrityEight.add(commit.slice(2, 40));
       }
     }
-    const content = Array.from(lastThrityEight).sort();
+    const content = Array.from(lastThrityEight)
+      .sort()
+      .map(sha =>
+        toDirEntry({
+          parent: filePath,
+          name: sha,
+          isDir: true,
+        })
+      );
     return {
       type: 'directory',
       content,
