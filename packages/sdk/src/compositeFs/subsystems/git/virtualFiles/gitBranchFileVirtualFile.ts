@@ -460,7 +460,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       await git.writeRef({
         fs: nodeFs,
         dir: gitRoot,
-        ref: `refs/heads/${pathParams.branchName}`,
+        ref: `refs/heads/${decodeBranchNameFromVfs(pathParams.branchName)}`,
         value: newCommitOid,
         force: true,
       });
