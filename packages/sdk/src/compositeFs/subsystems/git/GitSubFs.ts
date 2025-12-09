@@ -757,10 +757,6 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   ): Promise<string[] | Buffer[] | nodeFs.Dirent[]> {
     const pathStr = path.toString();
 
-    // if (!this.isLegitPath(pathStr)) {
-    //   return ['.legit'] as string[];
-    // }
-
     const parsed = this.getRouteHandler(pathStr);
 
     if (!parsed) {
