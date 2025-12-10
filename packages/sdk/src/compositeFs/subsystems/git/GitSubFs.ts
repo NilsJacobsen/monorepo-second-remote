@@ -1,7 +1,6 @@
 import git from 'isomorphic-git';
 import { CompositeSubFs } from '../../CompositeSubFs.js';
 import CompositFsFileHandle from '../../CompositeFsFileHandle.js';
-import type { Stats, BigIntStats } from 'fs';
 import * as path from 'path';
 
 import { createFsFromVolume, IFs, memfs, Volume } from 'memfs';
@@ -25,28 +24,14 @@ import type {
   TMode,
 } from '../../../types/fs-types.js';
 
-import {
-  VirtualFileArgs,
-  VirtualFileDefinition,
-} from './virtualFiles/gitVirtualFiles.js';
-import { allGitVirtualFiles } from './virtualFiles/gitVirtualFiles.js';
 import { BaseCompositeSubFs } from '../BaseCompositeSubFs.js';
 import * as nodeFs from 'node:fs';
-import { gitBranchFileVirtualFile } from './virtualFiles/gitBranchFileVirtualFile.js';
-import { LegitPathRouter, MatchResult } from './LegitPathRouter.js';
-import { gitBranchesListVirtualFile } from './virtualFiles/gitBranchesListVirtualFile.js';
-import { gitBranchHeadVirtualFile } from './virtualFiles/gitBranchHeadVirtualFile.js';
-import { legitVirtualFile } from './virtualFiles/legitVirtualFile.js';
-import { gitCommitFileVirtualFile } from './virtualFiles/gitCommitFileVirtualFile.js';
-import { gitCommitVirtualFolder } from './virtualFiles/gitCommitVirtualFolder.js';
-import { gitBranchOperationVirtualFile } from './virtualFiles/operations/gitBranchOperationVirtualFile.js';
 
-import { gitBranchOperationsVirtualFile } from './virtualFiles/operations/gitBranchOperationsVirtualFile.js';
-import { getThreadName } from './virtualFiles/operations/getThreadName.js';
-import { gitBranchHistory } from './virtualFiles/gitBranchHistory.js';
-import { gitBranchOperationHeadVirtualFile } from './virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
-import { gitCurrentBranchVirtualFile } from './virtualFiles/gitCurrentBranchVirtualFile.js';
-import { claudeVirtualSessionFileVirtualFile } from './virtualFiles/claudeVirtualSessionFileVirtualFile.js';
+import {
+  LegitPathRouter,
+  LegitRouteFolder,
+  MatchResult,
+} from './LegitPathRouter.js';
 import { toDirEntry } from './virtualFiles/utils.js';
 
 const stub = async () => undefined;
@@ -181,55 +166,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
    */
 
   // .legit/branches/main/
-  private static pathRouter = new LegitPathRouter({
-    '.legit': {
-      '.': legitVirtualFile,
-      operation: gitBranchOperationVirtualFile,
-      head: gitBranchHeadVirtualFile,
-      operationHead: gitBranchOperationHeadVirtualFile,
-      operationHistory: gitBranchOperationsVirtualFile,
-      history: gitBranchHistory,
-      currentBranch: gitCurrentBranchVirtualFile,
-      branches: {
-        '.': gitBranchesListVirtualFile,
-        '[branchName]': {
-          // branch names could include / so this is not a good delimiter here
-          '.legit': {
-            '.': legitVirtualFile,
-            operation: gitBranchOperationVirtualFile,
-            head: gitBranchHeadVirtualFile,
-            operationHead: gitBranchOperationHeadVirtualFile,
-            operationHistory: gitBranchOperationsVirtualFile,
-            history: gitBranchHistory,
-            threadName: getThreadName,
-          },
-          '[[...filePath]]': gitBranchFileVirtualFile,
-        },
-      },
-      commits: {
-        '.': gitCommitVirtualFolder,
-        '[sha_1_1_2]': {
-          '.': gitCommitVirtualFolder,
-          '[sha1_3__40]': {
-            '[[...filePath]]': gitCommitFileVirtualFile,
-          },
-        },
-      },
-      // TODO add a compare setup
-      // compare: {
-      //   '[[aWithB]]': {
-      //     '.legit': {
-      //       'changelist': getChangeList,
-      //     }, // gitCompareVirtualFile,
-      //     '[...filePath]': gitCompareVirtualFile,
-      //   }
-      // }
-    },
-    '.claude': {
-      '[[...filePath]]': claudeVirtualSessionFileVirtualFile,
-    },
-    '[[...filePath]]': gitBranchFileVirtualFile,
-  });
+  private pathRouter: LegitPathRouter;
 
   private memFs: IFs;
   private openFh: Record<
@@ -273,13 +210,17 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     parentFs,
     gitStorageFs,
     gitRoot,
+    routerConfig,
   }: {
     name: string;
     parentFs: CompositeFs;
     gitStorageFs: CompositeFs;
     gitRoot: string;
+    routerConfig: LegitRouteFolder;
   }) {
     super({ name, parentFs, gitRoot });
+
+    this.pathRouter = new LegitPathRouter(routerConfig);
 
     this.gitRoot = gitRoot;
     this.storageFs = gitStorageFs;
@@ -303,11 +244,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     }
     const firstLegitIndex = normalizedPath.indexOf(`/${GitSubFs.LEGIT_DIR}`);
     if (firstLegitIndex === -1) {
-      return GitSubFs.pathRouter.match(normalizedPath);
+      return this.pathRouter.match(normalizedPath);
     }
 
     const filePathWithoutLegit = normalizedPath.slice(firstLegitIndex + 1);
-    return GitSubFs.pathRouter.match(normalizedPath);
+    return this.pathRouter.match(normalizedPath);
   }
 
   /**

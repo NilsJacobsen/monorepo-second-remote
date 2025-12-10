@@ -9,6 +9,20 @@ import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
 import { createSessionManager, LegitUser } from './sync/sessionManager.js';
 import { createGitConfigTokenStore } from './sync/createGitConfigTokenStore.js';
+import { gitBranchFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchFileVirtualFile.js';
+import { gitBranchesListVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
+import { gitBranchHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchHeadVirtualFile.js';
+import { legitVirtualFile } from './compositeFs/subsystems/git/virtualFiles/legitVirtualFile.js';
+import { gitCommitFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCommitFileVirtualFile.js';
+import { gitCommitVirtualFolder } from './compositeFs/subsystems/git/virtualFiles/gitCommitVirtualFolder.js';
+import { gitBranchOperationVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationVirtualFile.js';
+
+import { gitBranchOperationsVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
+import { getThreadName } from './compositeFs/subsystems/git/virtualFiles/operations/getThreadName.js';
+import { gitBranchHistory } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
+import { gitBranchOperationHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
+import { gitCurrentBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
+import { claudeVirtualSessionFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/claudeVirtualSessionFileVirtualFile.js';
 import {
   createFsOperationFileLogger,
   FsOperationLogger,
@@ -186,11 +200,62 @@ export async function openLegitFs({
     defaultBranch: anonymousBranch,
   });
 
+  const routerConfig = {
+    '.legit': {
+      '.': legitVirtualFile,
+      operation: gitBranchOperationVirtualFile,
+      head: gitBranchHeadVirtualFile,
+      operationHead: gitBranchOperationHeadVirtualFile,
+      operationHistory: gitBranchOperationsVirtualFile,
+      history: gitBranchHistory,
+      currentBranch: gitCurrentBranchVirtualFile,
+      branches: {
+        '.': gitBranchesListVirtualFile,
+        '[branchName]': {
+          // branch names could include / so this is not a good delimiter here
+          '.legit': {
+            '.': legitVirtualFile,
+            operation: gitBranchOperationVirtualFile,
+            head: gitBranchHeadVirtualFile,
+            operationHead: gitBranchOperationHeadVirtualFile,
+            operationHistory: gitBranchOperationsVirtualFile,
+            history: gitBranchHistory,
+            threadName: getThreadName,
+          },
+          '[[...filePath]]': gitBranchFileVirtualFile,
+        },
+      },
+      commits: {
+        '.': gitCommitVirtualFolder,
+        '[sha_1_1_2]': {
+          '.': gitCommitVirtualFolder,
+          '[sha1_3__40]': {
+            '[[...filePath]]': gitCommitFileVirtualFile,
+          },
+        },
+      },
+      // TODO add a compare setup
+      // compare: {
+      //   '[[aWithB]]': {
+      //     '.legit': {
+      //       'changelist': getChangeList,
+      //     }, // gitCompareVirtualFile,
+      //     '[...filePath]': gitCompareVirtualFile,
+      //   }
+      // }
+    },
+    '.claude': {
+      '[[...filePath]]': claudeVirtualSessionFileVirtualFile,
+    },
+    '[[...filePath]]': gitBranchFileVirtualFile,
+  };
+
   const gitSubFs = new GitSubFs({
     name: 'git-subfs',
     parentFs: userSpaceFs,
     gitRoot: gitRoot,
     gitStorageFs: rootFs,
+    routerConfig,
   });
 
   const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
