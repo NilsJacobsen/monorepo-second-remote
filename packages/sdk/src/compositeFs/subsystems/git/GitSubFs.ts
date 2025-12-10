@@ -391,7 +391,8 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     // TODO add flags to handler definition
     if (
       flags.includes('x') &&
-      parsed?.handler.type !== 'gitBranchFileVirtualFile'
+      parsed?.handler.type !== 'gitBranchFileVirtualFile' &&
+      parsed?.handler.type !== 'claudeVirtualSessionFileVirtualFile'
     ) {
       throw new Error(
         `Exclusive operations not allowed for ${parsed?.handler.type}`

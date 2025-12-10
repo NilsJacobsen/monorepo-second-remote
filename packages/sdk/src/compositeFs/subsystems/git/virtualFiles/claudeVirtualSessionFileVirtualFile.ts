@@ -16,6 +16,8 @@ import { IDirent } from 'memfs/lib/node/types/misc.js';
 import { decodeBranchNameFromVfs } from './operations/nameEncoding.js';
 import { memfs } from 'memfs';
 
+const SESSION_DATA_PATH = 'session_data';
+
 /**
  * Virtual file for claud session
  *
@@ -39,9 +41,11 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
     const normalizedPath = filePath.replace(/\\/g, '/');
     if (
       normalizedPath.endsWith('.claude') ||
-      normalizedPath.endsWith('.claude/session_data') ||
-      normalizedPath.endsWith('.claude/session_data/debug') ||
-      /\.claude\/session_data\/projects\/[^/]+$/.test(normalizedPath)
+      normalizedPath.endsWith(`.claude/${SESSION_DATA_PATH}`) ||
+      normalizedPath.endsWith(`.claude/${SESSION_DATA_PATH}/debug`) ||
+      new RegExp(`\\.claude\\/${SESSION_DATA_PATH}\\/projects\\/[^/]+$`).test(
+        normalizedPath
+      )
     ) {
       return {
         mode: 0o755 | 0o040000, // directory mode
@@ -76,7 +80,7 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
       // settings.json virtual file
       const settingsContent = JSON.stringify(
         {
-          session_data_path: '.claude/session_data',
+          session_data_path: `.claude/${SESSION_DATA_PATH}`,
         },
         null,
         2
@@ -176,54 +180,58 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
       } as any;
     }
 
-    const stat = await cacheFs.promises.stat(filePath);
-    if (stat.isFile()) {
-      const content = await cacheFs.promises.readFile(filePath);
-      const blob = content;
+    try {
+      const stat = await cacheFs.promises.stat(filePath);
+      if (stat.isFile()) {
+        const content = await cacheFs.promises.readFile(filePath);
+        const blob = content;
 
-      return {
-        type: 'file',
-        content: content,
-        mode: 0o644,
-        size: blob.length,
-        oid: 'unknown',
-      };
-    } else {
-      const allEntries = (await cacheFs.promises.readdir(filePath, {
-        withFileTypes: true,
-      })) as IDirent[];
+        return {
+          type: 'file',
+          content: content,
+          mode: 0o644,
+          size: blob.length,
+          oid: 'unknown',
+        };
+      } else {
+        const allEntries = (await cacheFs.promises.readdir(filePath, {
+          withFileTypes: true,
+        })) as IDirent[];
 
-      if (normalizedPath.endsWith('.claude')) {
-        // add settings.json virtual file if not exists
-        const hasSettings = allEntries.find(
-          entry => entry.name.toString() === 'settings.json'
-        );
-        if (!hasSettings) {
-          allEntries.push(
-            toDirEntry({
-              name: 'settings.json',
-              parent: filePath,
-              isDir: false,
-            })
+        if (normalizedPath.endsWith('.claude')) {
+          // add settings.json virtual file if not exists
+          const hasSettings = allEntries.find(
+            entry => entry.name.toString() === 'settings.json'
           );
+          if (!hasSettings) {
+            allEntries.push(
+              toDirEntry({
+                name: 'settings.json',
+                parent: filePath,
+                isDir: false,
+              })
+            );
+          }
         }
+        return {
+          type: 'directory',
+          content: allEntries.map(entry => ({
+            ...entry,
+            name: entry.name.toString(),
+            path: `${filePath}`,
+            parentPath: `${filePath}`,
+          })),
+          mode: 0o755,
+        };
+        // tree..
+        // return {
+        //   type: 'directory',
+        //   content: fileOrFolder.entries.filter(v => v !== '.keep'),
+        //   mode: 0o755,
+        // };
       }
-      return {
-        type: 'directory',
-        content: allEntries.map(entry => ({
-          ...entry,
-          name: entry.name.toString(),
-          path: `${filePath}`,
-          parentPath: `${filePath}`,
-        })),
-        mode: 0o755,
-      };
-      // tree..
-      // return {
-      //   type: 'directory',
-      //   content: fileOrFolder.entries.filter(v => v !== '.keep'),
-      //   mode: 0o755,
-      // };
+    } catch (err) {
+      return;
     }
   },
 
@@ -235,7 +243,9 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
     cacheFs,
     pathParams,
     author,
-  }) => {},
+  }) => {
+    await cacheFs.promises.unlink(filePath);
+  },
 
   writeFile: async ({
     filePath,
@@ -246,6 +256,16 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
     pathParams,
     author,
   }) => {
+    // if (filePath.endsWith('.claude/settings.json')) {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    if (
+      new RegExp(`\\.claude\\/${SESSION_DATA_PATH}\\/projects\\/[^/]+$`).test(
+        normalizedPath
+      )
+    ) {
+      console.log(content);
+    }
+
     await cacheFs.promises.writeFile(filePath, content);
   },
 
@@ -272,6 +292,6 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
   },
 
   rmdir: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams, author }) => {
-    await cacheFs.promises.rmdir(filePath);
+    // done by outer system await cacheFs.promises.rmdir(filePath);
   },
 };

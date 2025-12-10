@@ -346,11 +346,15 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
           object: currentHead,
         });
 
-        branchCommit = await git.resolveRef({
-          fs: nodeFs,
-          ref: `refs/heads/${pathParams.branchName}`,
-          dir: gitRoot,
-        });
+        branchCommit = await tryResolveRef(
+          nodeFs,
+          gitRoot,
+          pathParams.branchName
+        );
+
+        if (!branchCommit) {
+          throw new Error('Could not create branch for getFile');
+        }
       }
       const fileOrFolder = await resolveGitObjAtPath({
         filePath,
@@ -589,6 +593,16 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         value: newCommitOid,
         force: true,
       });
+
+      const newBranchCommit = await tryResolveRef(
+        nodeFs,
+        gitRoot,
+        pathParams.branchName
+      );
+
+      if (newCommitOid !== newBranchCommit) {
+        throw new Error('Failed to update branch after file deletion');
+      }
     }
 
     // try {
