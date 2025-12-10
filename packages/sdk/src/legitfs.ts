@@ -71,6 +71,7 @@ export async function openLegitFs({
   },
   serverUrl = 'https://sync.legitcontrol.com',
   publicKey,
+  claudeHandler,
 }: {
   storageFs: typeof nodeFs;
   gitRoot: string;
@@ -79,6 +80,7 @@ export async function openLegitFs({
   initialAuthor?: LegitUser;
   serverUrl?: string;
   publicKey?: string;
+  claudeHandler?: boolean;
 }) {
   let repoExists = await storageFs.promises
     .readdir(gitRoot + '/.git')
@@ -249,6 +251,12 @@ export async function openLegitFs({
     },
     '[[...filePath]]': gitBranchFileVirtualFile,
   };
+
+  if (!claudeHandler && routerConfig['.claude']) {
+    // @ts-ignore
+    // NOTE the order of the config currently matters :-/
+    delete routerConfig['.claude'];
+  }
 
   const gitSubFs = new GitSubFs({
     name: 'git-subfs',

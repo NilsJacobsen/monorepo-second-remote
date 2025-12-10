@@ -18,6 +18,14 @@ import { memfs } from 'memfs';
 
 const SESSION_DATA_PATH = 'session_data';
 
+const settingsContent = JSON.stringify(
+  {
+    env: { CLAUDE_CONFIG_DIR: `.claude/${SESSION_DATA_PATH}` },
+  },
+  null,
+  2
+);
+
 /**
  * Virtual file for claud session
  *
@@ -78,13 +86,6 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
 
     if (normalizedPath.endsWith('.claude/settings.json')) {
       // settings.json virtual file
-      const settingsContent = JSON.stringify(
-        {
-          session_data_path: `.claude/${SESSION_DATA_PATH}`,
-        },
-        null,
-        2
-      );
 
       return {
         mode: 0o644,
@@ -162,15 +163,6 @@ export const claudeVirtualSessionFileVirtualFile: VirtualFileDefinition = {
     }
 
     if (normalizedPath.endsWith('.claude/settings.json')) {
-      // settings.json virtual file
-      const settingsContent = JSON.stringify(
-        {
-          session_data_path: '.claude/session_data',
-        },
-        null,
-        2
-      );
-
       return {
         type: 'file',
         content: settingsContent,
