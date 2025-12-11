@@ -8,7 +8,7 @@ export const legitVirtualFile: VirtualFileDefinition = {
   getStats: async ({ gitRoot, nodeFs }) => {
     const gitDir = gitRoot + '/' + '.git';
     try {
-      const gitStats = await nodeFs.stat(gitDir);
+      const gitStats = await nodeFs.promises.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT

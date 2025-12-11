@@ -57,115 +57,30 @@ const noAdditionalFiles = {
 };
 
 /**
- * 1. Path Structure Complexity
-  - Your nested .legit paths (e.g., /.legit/branch/my-branch-name/.legit/head) create redundancy
-  - Consider flattening: /.legit/branches/my-branch-name/head vs /.legit/branch/my-branch-name/.legit/head
-
-Reason for the concept: i need to distinguish .legit files from other folders, therefore i wanted to introduce .letgit as a reserved folder independent from the depth or if repeated
-Any problems you see with this?
-
-
-  2. Write Operations on Historical Data
-  - Writing to /.legit/history/commits/... paths is conceptually problematic - commits are immutable
-  - Consider read-only for historical data, write-only for branch operations
-
-  100% with you commits should be read only folders
-
-  3. Branch Head Management
-  - Using git tags for head tracking (my-branch-name_legithead) pollutes the tag namespace
-  - Alternative: Use a dedicated ref namespace like refs/legit/heads/my-branch-name
-
-Reason for the concept: i see the point with pollution of tag namespace BUT this will help existing tools to display the concept - i would start with tags and move refs to a later point in time
- - what speaks against this?
-
-  4. Conflict with Existing Virtual Files
-  - Current implementation has .status.gitbox, .branch.gitbox files
-  - Need strategy to migrate or maintain compatibility
-
-Context: the hole thing is a non published poc so no need to migrate - just an implementation change needed
-
-  Architectural Challenges
-
-  1. Performance
-  - Git operations (especially history traversal) can be expensive
-  - Current memfs caching might not scale for large repos
-  - Consider lazy loading and bounded caches
-
-   Future problem - lets not premature optimation or clear doubts?
-
-  2. Consistency
-  - Multiple write paths (working copy, branches) need careful coordination
-  - Race conditions between git operations and filesystem operations
-
-  Lets postpone this for now
-
-  3. Error Handling
-  - Git operations can fail (conflicts, invalid commits)
-  - Need clear error propagation through the FS layer
-
-  Lets discuss this deeper - dont understand the problem here.
-
-  Implementation Approach
-
-  Phase 1: Read-Only Git Views
-  // Start with immutable views
-  /.legit/status                    // Current git status
-  /.legit/commits/{sha}/path/to/file // Historical file access
-  /.legit/branches/                  // List branches
-  /.legit/refs/heads/{branch}/path   // Branch file access
-
-  Phase 2: Branch Operations
-  // Add write capabilities
-  /.legit/refs/heads/{branch}/.meta/head  // Track branch head
-  /.legit/refs/heads/{branch}/path        // Write to branch
-
-  Phase 3: Advanced Features
-  // Commit creation, branch management
-  /.legit/stage/                    // Staging area
-  /.legit/commit                    // Trigger commit
-
-  Plan sounds good!
-
-
-  Next Steps
-
-  1. Refine the path structure - Simplify and avoid nested .legit directories
-    - no please take my points into consideratio
-   
-  2. Create a proof-of-concept - Start with read-only status and commit access
- - sounds good
-
-  3. Build test infrastructure - Set up git fixture creation and FS testing utilities
-- absolutly
-
-  4. Implement incrementally - Phase approach to reduce complexity
-
-  alreight
-
-  The architecture supports your vision, but consider starting simpler and evolving based on real usage patterns.
-
-
-
-  /.legit/status                              // Git status info
-  /.legit/commits/{sha(0,1)}/{sha(2..20)}/path/to/file  // Historical files
-  /.legit/branches/                            // List branches
-  /.legit/branches/{name}/path/to/file     // Branch files (read/write)
-  /.legit/branches/{name}/.legit/head // read/write of the head commit of the branch {name}
-  /.legit/branches/{name}/.legit/tip // read/write of the tip of the branch {name} - keeping this allows undo redo ops
-
-  
+ * Topics to discuss:
+ * # Ref space polution
+ *  - Local vs Remote (we dont push all refs all the time)
+ *  - required refs (what are the miniumum refs required to keep the repo healthy)
+ *  - ref branch concept (branch pointing to oids to keep refs alive withouth poluting refs)
+ *
+ * # Performance (we tackle whens appear)
+ *  - Git operations (especially history traversal) can be expensive
+ *  - Current memfs caching might not scale for large repos
+ *  - Consider lazy loading and bounded caches
  */
+
+/**
+ * Git-backed CompositeSubFs implementation.
+ * 
+ * 
+ * docx file 
+ *  - we unpack the docx and store xml files as blobs in git
+ * mpeg file
+ *  - we chunk the file and sstsore chunks as blobs in git 
+ **/
 export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   private static readonly LEGIT_DIR = '.legit';
 
-  /**
-   * how to handle branches with slashes in them?
-   *
-   * Lets say i have a branch called my/branch/name
-   * this means i am not allowed to have a branch called my because this would conflict with
-   */
-
-  // .legit/branches/main/
   private pathRouter: LegitPathRouter;
 
   private memFs: IFs;
@@ -531,63 +446,6 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     });
 
     return stats;
-
-    // Create synthetic stats
-    // const now = new Date();
-    // const stats: Stats = {
-    //   dev: 0,
-    //   ino: 0,
-    //   mode: file.mode || (file.type === "directory" ? 0o755 : 0o644),
-    //   nlink: 1,
-    //   uid: process.getuid ? process.getuid() : 0,
-    //   gid: process.getgid ? process.getgid() : 0,
-    //   rdev: 0,
-    //   size: file.size || (file.content ? Buffer.byteLength(file.content) : 0),
-    //   blksize: 4096,
-    //   blocks: 0,
-    //   atimeMs: now.getTime(),
-    //   mtimeMs: now.getTime(),
-    //   ctimeMs: now.getTime(),
-    //   birthtimeMs: now.getTime(),
-    //   atime: now,
-    //   mtime: now,
-    //   ctime: now,
-    //   birthtime: now,
-    //   isBlockDevice: () => false,
-    //   isCharacterDevice: () => false,
-    //   isDirectory: () => file.type === "directory",
-    //   isFIFO: () => false,
-    //   isFile: () => file.type === "file",
-    //   isSocket: () => false,
-    //   isSymbolicLink: () => false,
-    // };
-
-    // if (opts && (opts as any).bigint) {
-    //   // Convert to BigIntStats
-    //   return {
-    //     ...stats,
-    //     dev: BigInt(stats.dev),
-    //     ino: BigInt(stats.ino),
-    //     mode: BigInt(stats.mode),
-    //     nlink: BigInt(stats.nlink),
-    //     uid: BigInt(stats.uid),
-    //     gid: BigInt(stats.gid),
-    //     rdev: BigInt(stats.rdev),
-    //     size: BigInt(stats.size),
-    //     blksize: BigInt(stats.blksize),
-    //     blocks: BigInt(stats.blocks),
-    //     atimeMs: BigInt(stats.atimeMs),
-    //     mtimeMs: BigInt(stats.mtimeMs),
-    //     ctimeMs: BigInt(stats.ctimeMs),
-    //     birthtimeMs: BigInt(stats.birthtimeMs),
-    //     atimeNs: BigInt(stats.atimeMs * 1000000),
-    //     mtimeNs: BigInt(stats.mtimeMs * 1000000),
-    //     ctimeNs: BigInt(stats.ctimeMs * 1000000),
-    //     birthtimeNs: BigInt(stats.birthtimeMs * 1000000),
-    //   } as BigIntStats;
-    // }
-
-    // return stats;
   }
 
   override async lstat(

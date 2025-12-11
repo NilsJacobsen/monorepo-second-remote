@@ -1,15 +1,15 @@
 import git from 'isomorphic-git';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 import * as nodeFs from 'node:fs';
-import { getCurrentBranch, setCurrentBranch } from './getCurrentBranch.js';
+import { getTargetBranch, setTargetBranch } from './getTargetBranch.js';
 import { tryResolveRef } from './utils.js';
 
-export const gitCurrentBranchVirtualFile: VirtualFileDefinition = {
-  type: 'gitCurrentBranchVirtualFile',
+export const gitTargetBranchVirtualFile: VirtualFileDefinition = {
+  type: 'gitTargetBranchVirtualFile',
   rootType: 'file',
 
   getStats: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getCurrentBranch(gitRoot, nodeFs);
+    const branchName = await getTargetBranch(gitRoot, nodeFs);
     const size = branchName.length;
 
     return {
@@ -44,7 +44,7 @@ export const gitCurrentBranchVirtualFile: VirtualFileDefinition = {
   },
 
   getFile: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getCurrentBranch(gitRoot, nodeFs);
+    const branchName = await getTargetBranch(gitRoot, nodeFs);
     return {
       type: 'file',
       content: branchName + '\n',
@@ -65,8 +65,8 @@ export const gitCurrentBranchVirtualFile: VirtualFileDefinition = {
       );
     }
 
-    // Use setCurrentBranch to set the new branch
-    await setCurrentBranch(gitRoot, nodeFs, newBranchName);
+    // Use setTargetBranch to set the new branch
+    await setTargetBranch(gitRoot, nodeFs, newBranchName);
   },
 
   rename(args) {

@@ -28,6 +28,7 @@ import {
   FsOperationLogger,
 } from './compositeFs/utils/fs-operation-logger.js';
 import { gitApplyCurrentChangesToVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
+import { gitTargetBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitTargetBranchVirtualFile.js';
 
 function getGitCache(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -166,42 +167,43 @@ export async function openLegitFs({
   // it propagates operations to the real filesystem (storageFs)
   // it allows the child copmositeFs to define file behavior while tunneling through to the real fs
   // this is used to be able to read and write within the .git folder while hiding it from the user
-  const rootFs = new CompositeFs({
-    name: 'root',
-    // the root CompositeFs has no parent - it doesn't propagate up
-    parentFs: undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    storageFs,
-    gitRoot,
-  });
+  // const rootFs = new CompositeFs({
+  //   name: 'root',
+  //   // the root CompositeFs has no parent - it doesn't propagate up
+  //   parentFs: undefined,
+  //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //   storageFs,
+  //   gitRoot,
+  // });
 
-  // Initialize gitCache
-  rootFs.gitCache = {};
+  // // Initialize gitCache
+  // rootFs.gitCache = {};
 
-  const rootEphemeralFs = new EphemeralSubFs({
-    name: 'root-ephemeral',
-    parentFs: rootFs,
-    gitRoot,
-    ephemeralPatterns: [],
-  });
+  // const rootEphemeralFs = new EphemeralSubFs({
+  //   name: 'root-ephemeral',
+  //   parentFs: rootFs,
+  //   gitRoot,
+  //   ephemeralPatterns: [],
+  // });
 
-  const rootHiddenFs = new HiddenFileSubFs({
-    name: 'root-hidden',
-    parentFs: rootFs,
-    gitRoot,
-    hiddenFiles: [],
-  });
+  // const rootHiddenFs = new HiddenFileSubFs({
+  //   name: 'root-hidden',
+  //   parentFs: rootFs,
+  //   gitRoot,
+  //   hiddenFiles: [],
+  // });
 
-  rootFs.setHiddenFilesSubFs(rootHiddenFs);
-  rootFs.setEphemeralFilesSubFs(rootEphemeralFs);
+  // rootFs.setHiddenFilesSubFs(rootHiddenFs);
+  // rootFs.setEphemeralFilesSubFs(rootEphemeralFs);
 
   const userSpaceFs = new CompositeFs({
     name: 'git',
-    parentFs: rootFs,
-    storageFs: undefined,
+    parentFs: undefined,
+    storageFs: storageFs,
     gitRoot: gitRoot,
     defaultBranch: anonymousBranch,
   });
+  userSpaceFs.gitCache = {};
 
   const routerConfig = {
     '.legit': {
@@ -212,6 +214,7 @@ export async function openLegitFs({
       operationHistory: gitBranchOperationsVirtualFile,
       history: gitBranchHistory,
       currentBranch: gitCurrentBranchVirtualFile,
+      'target-branch': gitTargetBranchVirtualFile,
       'apply-changes': gitApplyCurrentChangesToVirtualFile,
       branches: {
         '.': gitBranchesListVirtualFile,
@@ -264,7 +267,7 @@ export async function openLegitFs({
     name: 'git-subfs',
     parentFs: userSpaceFs,
     gitRoot: gitRoot,
-    gitStorageFs: rootFs,
+    gitStorageFs: storageFs,
     routerConfig,
   });
 
@@ -328,7 +331,6 @@ export async function openLegitFs({
     sync: syncService,
 
     setLogger(logger: FsOperationLogger | undefined) {
-      rootFs.setLoggger(logger);
       userSpaceFs.setLoggger(logger);
     },
 
