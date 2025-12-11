@@ -1,73 +1,138 @@
-# React + TypeScript + Vite
+# Legit SDK React + Vite Starter
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A starter template demonstrating how to use `@legit-sdk/react` for local-first document editing and version control in a React + Vite application.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- ✅ **Auto-initialization**: Files are automatically created with initial content if they don't exist
+- ✅ **Version history**: View commit history with visual diffs
+- ✅ **Commit checkout**: Browse historical commits and view their content
+- ✅ **Safe editing**: Save button is disabled when viewing non-HEAD commits
+- ✅ **Real-time sync**: Changes are automatically synced via HEAD polling
+- ✅ **Branch sharing**: Share your document with others via invite links
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+### Prerequisites
 
-## Expanding the ESLint configuration
+- Node.js 18+
+- npm (or pnpm/yarn)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Installation
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+```bash
+# Install dependencies
+npm install
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Run development server
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open [http://localhost:5173](http://localhost:5173) to see the demo.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## How It Works
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+This starter demonstrates a simple document editor with version control:
+
+1. **LegitProvider**: Initializes the Legit FS instance and polls for HEAD changes
+2. **useLegitFile**: Hook that manages file content, history, and save operations
+3. **Editor Component**: Simple textarea with save button and history list
+
+### Key Implementation
+
+```tsx
+import { LegitProvider, useLegitFile } from '@legit-sdk/react';
+
+function Editor() {
+  // Auto-create file with initial content if it doesn't exist
+  const { data, setData, history, getPastState } = useLegitFile(
+    '/document.txt',
+    { initialData: 'This is a document that you can edit! 🖋️' }
+  );
+
+  // ... rest of component
+}
 ```
+
+## Customization
+
+### Change the File Path
+
+Edit the file path in `src/App.tsx`:
+
+```tsx
+const legitFile = useLegitFile('/your-file.txt', {
+  initialData: INITIAL_TEXT,
+});
+```
+
+### Change Initial Content
+
+Edit `INITIAL_TEXT` in `src/App.tsx`:
+
+```tsx
+const INITIAL_TEXT = 'Your initial content here';
+```
+
+### Manual File Creation
+
+Remove `initialData` option to handle file creation manually:
+
+```tsx
+const legitFile = useLegitFile('/document.txt');
+```
+
+## Features Explained
+
+### Auto-initialization
+
+When `initialData` is provided, the hook automatically creates the file if it doesn't exist:
+
+```tsx
+useLegitFile('/document.txt', { initialData: 'Hello World' });
+```
+
+### History & Checkout
+
+- Click any history item to view that commit's content
+- Active commit is highlighted
+- Save button is disabled when viewing non-HEAD commits
+
+### Sync Behavior
+
+- Content syncs automatically when HEAD changes
+- User edits are preserved (won't be overwritten by sync)
+- Save clears checkout state and returns to HEAD
+
+### Branch Sharing
+
+Click the "Share" button to generate an invite link that allows others to collaborate on the same document branch.
+
+## Project Structure
+
+```
+src/
+  App.tsx                    # Main editor component
+  App.css                     # Component styles
+  main.tsx                    # Application entry point
+  index.css                   # Global styles
+  LegitBrand.tsx              # Legit branding components
+  LegitProviderComponent.tsx  # Legit provider setup
+public/
+  logo.svg                    # Legit logo
+  avatar.svg                  # Avatar icon
+  file.svg                    # File icon
+```
+
+## Learn More
+
+- [Legit SDK Documentation](../../packages/sdk-react/spec.md)
+- [React Documentation](https://react.dev)
+- [Vite Documentation](https://vite.dev)
+
+## Building Your Own Starter
+
+1. Copy this starter to your project
+2. Customize the file path and initial content
+3. Modify the UI to match your needs
+4. Add more files with multiple `useLegitFile` hooks
