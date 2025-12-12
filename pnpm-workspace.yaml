@@ -2,6 +2,7 @@ packages:
   - 'packages/*'
   - 'examples/*'
   - 'test-repos/*'
+  - 'website'
 
 public-hoist-pattern:
   - '@assistant-ui/*'
