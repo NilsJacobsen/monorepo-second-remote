@@ -10,13 +10,6 @@ import * as net from 'net';
 
 import { exec } from 'child_process';
 import { Command } from 'commander';
-import {
-  createNfs3Server,
-  createAsyncNfsHandler,
-  createFileHandleManager,
-} from '@legit-sdk/nfs-serve';
-
-import { openLegitFs } from '@legit-sdk/core';
 
 // Function to check if a port is available
 function isPortAvailable(port) {
@@ -103,29 +96,62 @@ function spawnSubProcess(cwd, cmd) {
 function startNfsServerWorker(servePoint, port, logFile = 'nfs-server.log') {
   console.log(`\nStarting NFS server worker...`);
   console.log(`Serve point: ${servePoint}`);
-  console.log(`Port: ${port}`);
+  console.log(`Initial port: ${port}`);
   console.log(`Log file: ${logFile}`);
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
-  // const workerPath = path.join(__dirname, 'nfs-server-worker.js');
+  // Create log file stream
+  const logStream = fsDisk.createWriteStream(logFile, { flags: 'a' });
+
+  // Add timestamp function for log entries
+  const logWithTimestamp = (data, isError = false) => {
+    const timestamp = new Date().toISOString();
+    const prefix = isError ? `ERROR: ` : ``;
+    logStream.write(`[${timestamp}] ${prefix}${data}`);
+  };
+
   const workerScript = path.join(__dirname, 'nfs-server-worker.js');
   const child = spawn(
     process.execPath,
-    [workerScript, servePoint, port.toString(), logFile],
+    ['--inspect', workerScript, servePoint, port.toString()],
     {
       cwd: process.cwd(),
-      stdio: ['inherit', 'inherit', 'inherit'],
+      stdio: ['inherit', 'pipe', 'pipe'],
       detached: false,
     }
   );
 
+  // Capture stdout and forward to both console and log file
+  child.stdout.on('data', data => {
+    const output = data.toString();
+    // console.log('data');
+    // process.stdout.write(output);
+    logWithTimestamp(output);
+  });
+
+  // Capture stderr and forward to both console and log file
+  child.stderr.on('data', data => {
+    const output = data.toString();
+    // process.stderr.write(output);
+    logWithTimestamp(output, true);
+  });
+
   child.on('error', error => {
     console.error(`Error spawning NFS server worker: ${error.message}`);
+    logWithTimestamp(
+      `Error spawning NFS server worker: ${error.message}\n`,
+      true
+    );
   });
 
   child.on('close', code => {
+    const message =
+      code === 0
+        ? `NFS server worker completed successfully with exit code ${code}\n`
+        : `NFS server worker failed with exit code ${code}\n`;
+
     if (code === 0) {
       console.log(
         `NFS server worker completed successfully with exit code ${code}`
@@ -133,6 +159,9 @@ function startNfsServerWorker(servePoint, port, logFile = 'nfs-server.log') {
     } else {
       console.error(`NFS server worker failed with exit code ${code}`);
     }
+
+    logWithTimestamp(message);
+    logStream.end();
   });
 
   // Return the child process so it can be managed
@@ -280,6 +309,9 @@ async function main() {
       // Mount the NFS share
       await mountNfsShare(options.mountPath, parseInt(options.port));
 
+      // TODO use nodefs to read current branch from mount path at /.legit/currentBranch
+      // TODO use nodefs to  set target branch to current branch by writing to /.legit/target-branch
+      // TODO set current branch to claude.${currentBranch}
       // Run the command in the mounted directory
       console.log('spawn subprocess ...');
       await spawnSubProcess(options.mountPath, options.spawn);

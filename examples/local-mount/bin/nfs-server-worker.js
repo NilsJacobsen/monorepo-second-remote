@@ -28,27 +28,6 @@ if (!fs.existsSync(SERVE_POINT)) {
   fs.mkdirSync(SERVE_POINT, { recursive: true });
 }
 
-// Create write stream for logging
-const logStream = fs.createWriteStream(LOG_FILE, { flags: 'a' });
-
-// Override console.log and console.error to write to both console and log file
-const originalConsoleLog = console.log;
-const originalConsoleError = console.error;
-
-console.log = (...args) => {
-  const timestamp = new Date().toISOString();
-  const message = args.join(' ');
-  // originalConsoleLog(`[${timestamp}]`, ...args);
-  logStream.write(`[${timestamp}] ${message}\n`);
-};
-
-console.error = (...args) => {
-  const timestamp = new Date().toISOString();
-  const message = args.join(' ');
-  // originalConsoleError(`[${timestamp}]`, ...args);
-  logStream.write(`[${timestamp}] ERROR: ${message}\n`);
-};
-
 try {
   // Find an available port starting from the configured port
   console.log(`Checking if port ${PORT} is available...`);
@@ -87,11 +66,9 @@ try {
     if (nfsServer) {
       nfsServer.close(() => {
         console.log('NFS server closed');
-        logStream.end();
         process.exit(0);
       });
     } else {
-      logStream.end();
       process.exit(0);
     }
   };
@@ -100,6 +77,5 @@ try {
   process.on('SIGTERM', cleanup);
 } catch (error) {
   console.error('Error starting NFS server:', error);
-  logStream.end();
   process.exit(1);
 }
