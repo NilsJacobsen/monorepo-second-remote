@@ -26,15 +26,12 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
 
-    let headCommit: string;
-
-    try {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: `refs/heads/${pathParams.branchName}`,
-      });
-    } catch {
+    let headCommit = await tryResolveRef(
+      nodeFs,
+      gitRoot,
+      pathParams.branchName
+    );
+    if (!headCommit) {
       throw new Error(
         `Base Branch ${pathParams.branchName} for operations does not exis`
       );
@@ -119,7 +116,6 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
   getFile: async args => {
     const { gitRoot, nodeFs, pathParams } = args;
 
-
     if (pathParams.branchName === undefined) {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
@@ -130,22 +126,25 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
       pathParams.branchName
     );
 
-    let headCommit: string;
+    let headCommit: string | undefined = undefined;
     let hasOperations = false;
 
     if (operationBranchName) {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: `refs/heads/${operationBranchName}`,
-      });
+      headCommit = await tryResolveRef(nodeFs, gitRoot, operationBranchName);
       hasOperations = true;
+
+      if (!headCommit) {
+        throw new Error(
+          `Base Branch ${operationBranchName} for operations does not exis`
+        );
+      }
     } else {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: `refs/heads/${pathParams.branchName}`,
-      });
+      headCommit = await tryResolveRef(nodeFs, gitRoot, pathParams.branchName);
+      if (!headCommit) {
+        throw new Error(
+          `Base Branch ${pathParams.branchName} for operations does not exis`
+        );
+      }
     }
 
     return {

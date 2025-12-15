@@ -3,6 +3,7 @@ import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
 import * as nodeFs from 'node:fs';
 import { getCurrentBranch } from './getCurrentBranch.js';
+import { tryResolveRef } from './utils.js';
 
 function getGitCacheFromFs(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -26,20 +27,16 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
 
-    let headCommit: string;
 
-    try {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: pathParams.branchName,
-      });
-    } catch {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: `refs/heads/${pathParams.branchName}`,
-      });
+    let headCommit = await tryResolveRef(
+      nodeFs,
+      gitRoot,
+      pathParams.branchName
+    );
+    if (!headCommit) {
+      throw new Error(
+        `Branch ${pathParams.branchName} does not exist in the repository`
+      );
     }
 
     const commit = await git.readCommit({

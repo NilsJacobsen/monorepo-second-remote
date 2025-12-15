@@ -513,6 +513,44 @@ describe('openLegitFs', () => {
     expect(afterCommits2).toBe(initialCommits);
   });
 
+  it('should list files in .legit folder and verify branches folder exists', async () => {
+    const legitFolder = await legitfs.promises.readdir(`${repoPath}/.legit`);
+    expect(legitFolder).toContain('branches');
+
+    const branchesFolderStats = await legitfs.promises.stat(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesFolderStats.isDirectory()).toBe(true);
+
+    const branchesFolder = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesFolder).toContain('main');
+  });
+
+  it('should list branches with withFileTypes and verify they are directories', async () => {
+    const branchesFolder = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`,
+      { withFileTypes: true }
+    );
+
+    const mainBranch = branchesFolder.find(entry => entry.name === 'main');
+    expect(mainBranch).toBeDefined();
+    expect(mainBranch?.isDirectory()).toBe(true);
+  });
+
+  it('should verify .legit folder structure in branch', async () => {
+    const legitInBranch = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches/main/.legit`
+    );
+
+    expect(legitInBranch).toContain('head');
+    expect(legitInBranch).toContain('operation');
+    expect(legitInBranch).toContain('operationHead');
+    expect(legitInBranch).toContain('operationHistory');
+    expect(legitInBranch).toContain('history');
+  });
+
   it('should create operation commits with correct parentage and messages', async () => {
     const textFilePath = `${repoPath}/.legit/branches/main/text.txt`;
     const operationFilePath = `${repoPath}/.legit/branches/main/.legit/operation`;

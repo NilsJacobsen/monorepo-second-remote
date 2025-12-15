@@ -29,8 +29,6 @@ if (!fs.existsSync(SERVE_POINT)) {
 }
 
 try {
-  // Find an available port starting from the configured port
-  console.log(`Checking if port ${PORT} is available...`);
 
   const legitFs = await openLegitFs({
     storageFs: fs,
