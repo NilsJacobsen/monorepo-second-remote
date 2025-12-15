@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume, createFsFromVolume } from 'memfs';
-import git from 'isomorphic-git';
+import * as isogit from 'isomorphic-git';
 import { openLegitFs } from './legitfs.js';
 
 const repoPath = '/repo';
@@ -33,11 +33,11 @@ async function setupRepo() {
     })
   );
 
-  await git.init({ fs: memfs, dir: repoPath, defaultBranch: 'main' });
-  await git.add({ fs: memfs, dir: repoPath, filepath: 'a.txt' });
-  await git.add({ fs: memfs, dir: repoPath, filepath: 'f/b.txt' });
-  await git.add({ fs: memfs, dir: repoPath, filepath: 'f/c.txt' });
-  await git.commit({
+  await isogit.init({ fs: memfs, dir: repoPath, defaultBranch: 'main' });
+  await isogit.add({ fs: memfs, dir: repoPath, filepath: 'a.txt' });
+  await isogit.add({ fs: memfs, dir: repoPath, filepath: 'f/b.txt' });
+  await isogit.add({ fs: memfs, dir: repoPath, filepath: 'f/c.txt' });
+  await isogit.commit({
     fs: memfs,
     dir: repoPath,
     message: 'Initial commit',
@@ -213,7 +213,7 @@ describe('openLegitFs', () => {
 
   it('should create, rename, remove and move folders and files in branch', async () => {
     let commits = async () =>
-      await git.log({ fs: memfs, dir: repoPath, depth: 100 });
+      await isogit.log({ fs: memfs, dir: repoPath, depth: 100 });
 
     expect((await commits()).length).toBe(1);
 
@@ -428,8 +428,8 @@ describe('openLegitFs', () => {
     await aFileHandler.read(aFileContent, 0, 6, 0);
     expect(aFileContent.toString('utf-8')).toBe('A file');
 
-    await git.add({ fs: memfs, dir: repoPath, filepath: 'a.txt' });
-    await git.commit({
+    await isogit.add({ fs: memfs, dir: repoPath, filepath: 'a.txt' });
+    await isogit.commit({
       fs: memfs,
       dir: repoPath,
       message: 'Update a.txt',
@@ -476,7 +476,7 @@ describe('openLegitFs', () => {
 
   it('should not create a commit when writing an ephemeral file matching .~lock.* pattern', async () => {
     const getCommitCount = async () =>
-      (await git.log({ fs: memfs, dir: repoPath, depth: 100 })).length;
+      (await isogit.log({ fs: memfs, dir: repoPath, depth: 100 })).length;
 
     const initialCommits = await getCommitCount();
 
@@ -512,7 +512,7 @@ describe('openLegitFs', () => {
     await legitfs.promises.writeFile(textFilePath, 'hello world');
 
     // Get the commit after writing text.txt
-    const mainCommits = await git.log({
+    const mainCommits = await isogit.log({
       fs: memfs,
       dir: repoPath,
       ref: 'main',
@@ -523,12 +523,12 @@ describe('openLegitFs', () => {
     // 2. Write "first operation" to operation file
     await legitfs.promises.writeFile(operationFilePath, 'first operation');
 
-    const branches = await git.listBranches({ fs: memfs, dir: repoPath });
+    const branches = await isogit.listBranches({ fs: memfs, dir: repoPath });
     expect(branches).toContain('main');
     expect(branches.some(b => b.endsWith('_main-operation'))).toBe(true);
 
     // Get the first operation commit
-    const opCommits1 = await git.log({
+    const opCommits1 = await isogit.log({
       fs: memfs,
       dir: repoPath,
       ref: operationBranch,
@@ -549,7 +549,7 @@ describe('openLegitFs', () => {
     await legitfs.promises.writeFile(operationFilePath, 'second operation');
 
     // Get the second operation commit
-    const opCommits2 = await git.log({
+    const opCommits2 = await isogit.log({
       fs: memfs,
       dir: repoPath,
       ref: operationBranch,
@@ -561,7 +561,7 @@ describe('openLegitFs', () => {
 
     // 4. Update text.txt with "hello legit"
     await legitfs.promises.writeFile(textFilePath, 'hello legit');
-    const mainCommits2 = await git.log({
+    const mainCommits2 = await isogit.log({
       fs: memfs,
       dir: repoPath,
       ref: 'main',
@@ -573,7 +573,7 @@ describe('openLegitFs', () => {
     await legitfs.promises.writeFile(operationFilePath, 'third operation');
 
     // Get the third operation commit
-    const opCommits3 = await git.log({
+    const opCommits3 = await isogit.log({
       fs: memfs,
       dir: repoPath,
       ref: operationBranch,
