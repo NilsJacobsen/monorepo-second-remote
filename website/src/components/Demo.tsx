@@ -312,7 +312,7 @@ const DemoComponent = () => {
       </div>
       <Font
         type="p"
-        className="text-center text-zinc-500 w-full col-span-20 pt-6"
+        className="text-center text-zinc-400 w-full col-span-20 pt-8"
       >
         This is an AI-powered editor. Legit runs underneath.
       </Font>
