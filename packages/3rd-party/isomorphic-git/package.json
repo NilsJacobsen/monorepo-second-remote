@@ -8,7 +8,7 @@
   "module": "./index.js",
   "exports": {
     ".": {
-      "types": "./index.d.cts",
+      "types": "./index.d.ts",
       "default": "./index.cjs"
     },
     "./http/node": {
@@ -49,26 +49,6 @@
       "require": {
         "types": "./models/index.d.cts",
         "default": "./models/index.cjs"
-      }
-    },
-    "./storage": {
-      "import": {
-        "types": "./storage/index.d.ts",
-        "default": "./storage/index.js"
-      },
-      "require": {
-        "types": "./storage/index.d.cts",
-        "default": "./storage/index.cjs"
-      }
-    },
-    "./utils": {
-      "import": {
-        "types": "./utils/index.d.ts",
-        "default": "./utils/index.js"
-      },
-      "require": {
-        "types": "./utils/index.d.cts",
-        "default": "./utils/index.cjs"
       }
     }
   },
