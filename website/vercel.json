@@ -1,6 +1,4 @@
 {
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
-  "buildCommand": "cd website && pnpm build",
-  "outputDirectory": "website/.next"
+  "installCommand": "cd .. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd .. && pnpm --filter @legit-sdk/core build && pnpm --filter @legit-sdk/react build && cd website && pnpm build"
 }
-
