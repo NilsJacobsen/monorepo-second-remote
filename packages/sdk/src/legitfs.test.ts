@@ -513,6 +513,85 @@ describe('openLegitFs', () => {
     expect(afterCommits2).toBe(initialCommits);
   });
 
+  it('should list files in .legit folder and verify branches and commits folder exists', async () => {
+    const legitFolder = await legitfs.promises.readdir(`${repoPath}/.legit`);
+    expect(legitFolder).toContain('branches');
+    expect(legitFolder).toContain('commits');
+
+    const branchesFolderStats = await legitfs.promises.stat(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesFolderStats.isDirectory()).toBe(true);
+
+    const commitsFolderStats = await legitfs.promises.stat(
+      `${repoPath}/.legit/commits`
+    );
+    expect(commitsFolderStats.isDirectory()).toBe(true);
+
+    const branchesFolder = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesFolder).toContain('main');
+  });
+
+  it('should allow to create a new branch by calling mkdir with .legit/branches/${branchname}', async () => {
+    const newBranchPath = `${repoPath}/.legit/branches/feature-branch`;
+
+    // Verify branch doesn't exist yet
+    const branchesBefore = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesBefore).not.toContain('feature-branch');
+
+    // Create new branch
+    await legitfs.promises.mkdir(newBranchPath);
+
+    // Create new branch
+    await expect(
+      legitfs.promises.mkdir(newBranchPath),
+      'creating a branch that already exists should throw'
+    ).rejects.toThrow();
+
+    // Verify branch exists
+    const branchesAfter = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`
+    );
+    expect(branchesAfter).toContain('feature-branch');
+
+    // Verify it's a directory
+    const stats = await legitfs.promises.stat(newBranchPath);
+    expect(stats.isDirectory()).toBe(true);
+
+    // Verify we can write files to the new branch
+    const testFilePath = `${newBranchPath}/test.txt`;
+    await legitfs.promises.writeFile(testFilePath, 'content in new branch');
+    const content = await legitfs.promises.readFile(testFilePath, 'utf-8');
+    expect(content).toBe('content in new branch');
+  });
+
+  it('should list branches with withFileTypes and verify they are directories', async () => {
+    const branchesFolder = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches`,
+      { withFileTypes: true }
+    );
+
+    const mainBranch = branchesFolder.find(entry => entry.name === 'main');
+    expect(mainBranch).toBeDefined();
+    expect(mainBranch?.isDirectory()).toBe(true);
+  });
+
+  it('should verify .legit folder structure in branch', async () => {
+    const legitInBranch = await legitfs.promises.readdir(
+      `${repoPath}/.legit/branches/main/.legit`
+    );
+
+    expect(legitInBranch).toContain('head');
+    expect(legitInBranch).toContain('operation');
+    expect(legitInBranch).toContain('operationHead');
+    expect(legitInBranch).toContain('operationHistory');
+    expect(legitInBranch).toContain('history');
+  });
+
   it('should create operation commits with correct parentage and messages', async () => {
     const textFilePath = `${repoPath}/.legit/branches/main/text.txt`;
     const operationFilePath = `${repoPath}/.legit/branches/main/.legit/operation`;
@@ -847,6 +926,54 @@ describe('readDir', () => {
       withFileTypes: true,
     });
     expect(branches.map(b => b.name)).toContain('anonymous');
+  });
+});
+
+describe('readdir .claude', () => {
+  beforeEach(async () => {
+    await setupRepo();
+    legitfs = await openLegitFsWithMemoryFs();
+  });
+
+  it('should read folder with fileTypes', async () => {
+    // @ts-ignore
+    const legitfs = await openLegitFsWithMemoryFs({
+      claudeHandler: true,
+    });
+    const claudeFolder = await legitfs.promises.readdir(`/.claude`, {
+      withFileTypes: true,
+    });
+    expect(claudeFolder.map(b => b.name)).toContain('settings.json');
+
+    // Create a folder
+    await legitfs.promises.mkdir(`/.claude/test-folder`);
+    const folderAfterCreate = await legitfs.promises.readdir(`/.claude`, {
+      withFileTypes: true,
+    });
+    expect(folderAfterCreate.map(b => b.name)).toContain('test-folder');
+
+    // Remove the folder
+    await legitfs.promises.rmdir(`/.claude/test-folder`);
+    const folderAfterRemove = await legitfs.promises.readdir(`/.claude`, {
+      withFileTypes: true,
+    });
+    expect(folderAfterRemove.map(b => b.name)).not.toContain('test-folder');
+
+    // Create a file
+    await legitfs.promises.writeFile(`/.claude/test-file.txt`, 'test content');
+    const folderAfterFileCreate = await legitfs.promises.readdir(`/.claude`, {
+      withFileTypes: true,
+    });
+    expect(folderAfterFileCreate.map(b => b.name)).toContain('test-file.txt');
+
+    // Remove the file
+    await legitfs.promises.unlink(`/.claude/test-file.txt`);
+    const folderAfterFileRemove = await legitfs.promises.readdir(`/.claude`, {
+      withFileTypes: true,
+    });
+    expect(folderAfterFileRemove.map(b => b.name)).not.toContain(
+      'test-file.txt'
+    );
   });
 });
 

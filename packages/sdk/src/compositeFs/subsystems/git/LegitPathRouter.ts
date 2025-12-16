@@ -11,7 +11,7 @@ export type MatchResult = {
   params: Record<string, string>;
 };
 
-interface LegitRouteFolder {
+export interface LegitRouteFolder {
   [key: string]: LegitRouteDescriptor;
 }
 

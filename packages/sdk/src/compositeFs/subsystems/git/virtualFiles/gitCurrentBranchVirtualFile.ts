@@ -3,10 +3,12 @@ import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 import * as nodeFs from 'node:fs';
 import { getCurrentBranch, setCurrentBranch } from './getCurrentBranch.js';
 import { tryResolveRef } from './utils.js';
+import { getTargetBranch } from './getTargetBranch.js';
+import { decodeBranchNameFromVfs } from './operations/nameEncoding.js';
 
 export const gitCurrentBranchVirtualFile: VirtualFileDefinition = {
   type: 'gitCurrentBranchVirtualFile',
-  rootType: 'folder',
+  rootType: 'file',
 
   getStats: async ({ gitRoot, nodeFs }) => {
     const branchName = await getCurrentBranch(gitRoot, nodeFs);
@@ -60,9 +62,25 @@ export const gitCurrentBranchVirtualFile: VirtualFileDefinition = {
 
     const ref = await tryResolveRef(nodeFs, gitRoot, newBranchName);
     if (!ref) {
-      throw new Error(
-        `Branch ${newBranchName} does not exist in the repository`
+      const sourceBranch = await getTargetBranch(gitRoot, nodeFs);
+
+      const sourceBranchRef = await tryResolveRef(
+        nodeFs,
+        gitRoot,
+        sourceBranch
       );
+
+      if (!sourceBranchRef) {
+        throw new Error(
+          `Ref branch ${sourceBranch} does not exist in the repository`
+        );
+      }
+      await git.branch({
+        fs: nodeFs,
+        dir: gitRoot,
+        ref: decodeBranchNameFromVfs(newBranchName),
+        object: sourceBranchRef,
+      });
     }
 
     // Use setCurrentBranch to set the new branch

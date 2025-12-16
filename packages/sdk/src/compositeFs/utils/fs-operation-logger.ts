@@ -41,7 +41,8 @@ export const createFsOperationFileLogger = (fs: {
       return value;
     });
 
-    await fs.writeFile(
+    // await fs.writeFile(
+    console.log(
       operationPath,
       `[${args.fsName}].${args.operation}(${args.fd ? args.fd.fd + ' - ' : ''}${args.path})\n\n${jsonArgs}\n\n`
     );

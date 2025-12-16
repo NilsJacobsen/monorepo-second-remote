@@ -9,10 +9,39 @@ import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
 import { createSessionManager, LegitUser } from './sync/sessionManager.js';
 import { createGitConfigTokenStore } from './sync/createGitConfigTokenStore.js';
+import { gitBranchFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchFileVirtualFile.js';
+import { gitBranchesListVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
+import { gitBranchHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchHeadVirtualFile.js';
+import { legitVirtualFile } from './compositeFs/subsystems/git/virtualFiles/legitVirtualFile.js';
+import { gitCommitFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCommitFileVirtualFile.js';
+import { gitCommitVirtualFolder } from './compositeFs/subsystems/git/virtualFiles/gitCommitVirtualFolder.js';
+import { gitBranchOperationVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationVirtualFile.js';
+
+import { gitBranchOperationsVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
+import { getThreadName } from './compositeFs/subsystems/git/virtualFiles/operations/getThreadName.js';
+import { gitBranchHistory } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
+import { gitBranchOperationHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
+import { gitCurrentBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
+import { claudeVirtualSessionFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/claudeVirtualSessionFileVirtualFile.js';
 import {
   createFsOperationFileLogger,
   FsOperationLogger,
 } from './compositeFs/utils/fs-operation-logger.js';
+import { gitApplyCurrentChangesToVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
+import { gitTargetBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitTargetBranchVirtualFile.js';
+
+function getGitCache(fs: any): any {
+  // If it's a CompositeFs with gitCache, use it
+  if (fs && fs.gitCache !== undefined) {
+    return fs.gitCache;
+  }
+  // If it has a parent, traverse up to find the gitCache
+  if (fs && fs.parentFs) {
+    return getGitCache(fs.parentFs);
+  }
+  // Default to empty object if no cache found
+  return {};
+}
 
 // same props as openLegitFs
 export async function openLegitFsWithMemoryFs(
@@ -44,6 +73,7 @@ export async function openLegitFs({
   },
   serverUrl = 'https://sync.legitcontrol.com',
   publicKey,
+  claudeHandler,
 }: {
   storageFs: typeof nodeFs;
   gitRoot: string;
@@ -52,6 +82,7 @@ export async function openLegitFs({
   initialAuthor?: LegitUser;
   serverUrl?: string;
   publicKey?: string;
+  claudeHandler?: boolean;
 }) {
   let repoExists = await storageFs.promises
     .readdir(gitRoot + '/.git')
@@ -60,14 +91,24 @@ export async function openLegitFs({
 
   if (!repoExists) {
     // initiliaze git repo with anonyomous branch
-    await git.init({ fs: storageFs, dir: '/', defaultBranch: anonymousBranch });
+    await git.init({
+      fs: storageFs,
+      dir: '/',
+      defaultBranch: anonymousBranch,
+    });
     await storageFs.promises.writeFile(gitRoot + '/.keep', '');
-    await git.add({ fs: storageFs, dir: '/', filepath: '.keep' });
+    await git.add({
+      fs: storageFs,
+      dir: '/',
+      filepath: '.keep',
+      cache: getGitCache(storageFs),
+    });
     await git.commit({
       fs: storageFs,
       dir: '/',
       message: 'Initial commit',
       author: { name: 'Test', email: 'test@example.com' },
+      cache: getGitCache(storageFs),
     });
 
     await git.setConfig({
@@ -126,45 +167,107 @@ export async function openLegitFs({
   // it propagates operations to the real filesystem (storageFs)
   // it allows the child copmositeFs to define file behavior while tunneling through to the real fs
   // this is used to be able to read and write within the .git folder while hiding it from the user
-  const rootFs = new CompositeFs({
-    name: 'root',
-    // the root CompositeFs has no parent - it doesn't propagate up
-    parentFs: undefined,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    storageFs,
-    gitRoot,
-  });
+  // const rootFs = new CompositeFs({
+  //   name: 'root',
+  //   // the root CompositeFs has no parent - it doesn't propagate up
+  //   parentFs: undefined,
+  //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  //   storageFs,
+  //   gitRoot,
+  // });
 
-  const rootEphemeralFs = new EphemeralSubFs({
-    name: 'root-ephemeral',
-    parentFs: rootFs,
-    gitRoot,
-    ephemeralPatterns: [],
-  });
+  // // Initialize gitCache
+  // rootFs.gitCache = {};
 
-  const rootHiddenFs = new HiddenFileSubFs({
-    name: 'root-hidden',
-    parentFs: rootFs,
-    gitRoot,
-    hiddenFiles: [],
-  });
+  // const rootEphemeralFs = new EphemeralSubFs({
+  //   name: 'root-ephemeral',
+  //   parentFs: rootFs,
+  //   gitRoot,
+  //   ephemeralPatterns: [],
+  // });
 
-  rootFs.setHiddenFilesSubFs(rootHiddenFs);
-  rootFs.setEphemeralFilesSubFs(rootEphemeralFs);
+  // const rootHiddenFs = new HiddenFileSubFs({
+  //   name: 'root-hidden',
+  //   parentFs: rootFs,
+  //   gitRoot,
+  //   hiddenFiles: [],
+  // });
+
+  // rootFs.setHiddenFilesSubFs(rootHiddenFs);
+  // rootFs.setEphemeralFilesSubFs(rootEphemeralFs);
 
   const userSpaceFs = new CompositeFs({
     name: 'git',
-    parentFs: rootFs,
-    storageFs: undefined,
+    storageFs: storageFs,
     gitRoot: gitRoot,
     defaultBranch: anonymousBranch,
   });
+  userSpaceFs.gitCache = {};
+
+  const routerConfig = {
+    '.legit': {
+      '.': legitVirtualFile,
+      operation: gitBranchOperationVirtualFile,
+      head: gitBranchHeadVirtualFile,
+      operationHead: gitBranchOperationHeadVirtualFile,
+      operationHistory: gitBranchOperationsVirtualFile,
+      history: gitBranchHistory,
+      currentBranch: gitCurrentBranchVirtualFile,
+      'target-branch': gitTargetBranchVirtualFile,
+      'apply-changes': gitApplyCurrentChangesToVirtualFile,
+      branches: {
+        '.': gitBranchesListVirtualFile,
+        '[branchName]': {
+          // branch names could include / so this is not a good delimiter here
+          '.legit': {
+            '.': legitVirtualFile,
+            operation: gitBranchOperationVirtualFile,
+            head: gitBranchHeadVirtualFile,
+            operationHead: gitBranchOperationHeadVirtualFile,
+            operationHistory: gitBranchOperationsVirtualFile,
+            history: gitBranchHistory,
+            threadName: getThreadName,
+          },
+          '[[...filePath]]': gitBranchFileVirtualFile,
+        },
+      },
+      commits: {
+        '.': gitCommitVirtualFolder,
+        '[sha_1_1_2]': {
+          '.': gitCommitVirtualFolder,
+          '[sha1_3__40]': {
+            '[[...filePath]]': gitCommitFileVirtualFile,
+          },
+        },
+      },
+      // TODO add a compare setup
+      // compare: {
+      //   '[[aWithB]]': {
+      //     '.legit': {
+      //       'changelist': getChangeList,
+      //     }, // gitCompareVirtualFile,
+      //     '[...filePath]': gitCompareVirtualFile,
+      //   }
+      // }
+    },
+    '.claude': {
+      '[[...filePath]]': claudeVirtualSessionFileVirtualFile,
+    },
+    '[[...filePath]]': gitBranchFileVirtualFile,
+  };
+
+  if (!claudeHandler && routerConfig['.claude']) {
+    // @ts-ignore
+    // NOTE the order of the config currently matters :-/
+    delete routerConfig['.claude'];
+  }
 
   const gitSubFs = new GitSubFs({
     name: 'git-subfs',
     parentFs: userSpaceFs,
     gitRoot: gitRoot,
-    gitStorageFs: rootFs,
+    gitStorageFs: storageFs,
+    routerConfig,
   });
 
   const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
@@ -197,6 +300,7 @@ export async function openLegitFs({
       '**/lu[0-9a-zA-Z]*.tmp',
       // legit uses a tmp file as well
       '**/.metaentries.json.tmp',
+      '**/**.tmp.**',
       '**/**.sb-**',
     ],
   });
@@ -226,7 +330,6 @@ export async function openLegitFs({
     sync: syncService,
 
     setLogger(logger: FsOperationLogger | undefined) {
-      rootFs.setLoggger(logger);
       userSpaceFs.setLoggger(logger);
     },
 
@@ -261,7 +364,10 @@ export async function openLegitFs({
     },
     setCurrentBranch: async (branch: string): Promise<void> => {
       // check if branch exists
-      const branches = await git.listBranches({ fs: storageFs, dir: gitRoot });
+      const branches = await git.listBranches({
+        fs: storageFs,
+        dir: gitRoot,
+      });
       const branchExists = branches.includes(branch);
       if (!branchExists) {
         await syncService?.loadBranch(branch);

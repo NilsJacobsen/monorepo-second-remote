@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { Volume, createFsFromVolume } from 'memfs';
 import * as isogit from 'isomorphic-git';
 import { openLegitFs } from './legitfs.js';
-import fs from 'fs';
 
 const repoPath = '/repo';
 const files = {

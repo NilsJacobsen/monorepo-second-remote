@@ -111,6 +111,7 @@ export class CompositeFs {
   parentFs: CompositeFs | undefined;
   name: string;
   defaultBranch: string;
+  gitCache: any;
 
   pathToFileDescriptors: Map<
     /** path */
@@ -128,19 +129,16 @@ export class CompositeFs {
 
   constructor({
     name,
-    parentFs,
     storageFs,
     gitRoot,
     defaultBranch = 'main',
   }: {
     name: string;
-    parentFs: CompositeFs | undefined;
-    storageFs: typeof nodeFs | undefined;
+    storageFs: typeof nodeFs;
     gitRoot: string;
     defaultBranch?: string;
   }) {
     this.name = name;
-    this.parentFs = parentFs;
     this.gitRoot = gitRoot;
     this.defaultBranch = defaultBranch;
 
@@ -163,26 +161,14 @@ export class CompositeFs {
       getFilehandle: this.getFilehandle.bind(this),
     } as any;
 
-    if (!parentFs && storageFs) {
-      this.passThroughFileSystem = new PassThroughToAsyncFsSubFs({
-        name: name + '-passthrough',
-        passThroughFs: storageFs,
-        gitRoot: gitRoot,
-        parentFs: this,
-      });
-      return;
-    }
-
-    if (!storageFs && parentFs) {
-      this.passThroughFileSystem = new PassThroughSubFs({
-        name: name + '-passthrough',
-        parentFs: this,
-        gitRoot: gitRoot,
-      });
-      return;
-    }
-
-    throw new Error('invalid configuration');
+    this.passThroughFileSystem = new PassThroughToAsyncFsSubFs({
+      name: name + '-passthrough',
+      passThroughFs: storageFs,
+      gitRoot: gitRoot,
+      parentFs: this,
+    });
+    return;
+    
   }
 
   setLoggger(logger: FsOperationLogger | undefined) {
@@ -325,8 +311,6 @@ export class CompositeFs {
 
   /**
    * Read dir needs to check if one subfs takes control.
-   *
-   * TODO also implement the option to return stats
    *
    * @param dirPath
    * @param options

@@ -2,6 +2,7 @@ import git from 'isomorphic-git';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
 import * as nodeFs from 'node:fs';
+import { tryResolveRef } from './utils.js';
 
 export const gitCompareVirtualFile: VirtualFileDefinition = {
   type: 'gitCompareVirtualFile',
@@ -12,22 +13,16 @@ export const gitCompareVirtualFile: VirtualFileDefinition = {
       throw new Error('branchName should be in pathParams');
     }
 
-    let headCommit: string;
-
-    try {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: pathParams.branchName,
-      });
-    } catch {
-      headCommit = await git.resolveRef({
-        fs: nodeFs,
-        dir: gitRoot,
-        ref: `refs/heads/${pathParams.branchName}`,
-      });
+    let headCommit = await tryResolveRef(
+      nodeFs,
+      gitRoot,
+      pathParams.branchName
+    );
+    if (!headCommit) {
+      throw new Error(
+        `Branch ${pathParams.branchName} does not exist in the repository`
+      );
     }
-
     const commit = await git.readCommit({
       fs: nodeFs,
       dir: gitRoot,
