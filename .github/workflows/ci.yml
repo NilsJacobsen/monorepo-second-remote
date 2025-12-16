@@ -28,6 +28,9 @@ jobs:
           version: 10 # or your current pnpm version
           run_install: true
 
+      - name: Build packages
+        run: pnpm build
+
       - name: Run tests
         run: pnpm test
 
