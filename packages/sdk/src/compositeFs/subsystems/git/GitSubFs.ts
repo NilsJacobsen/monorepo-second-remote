@@ -1,7 +1,6 @@
 import git from 'isomorphic-git';
 import { CompositeSubFs } from '../../CompositeSubFs.js';
 import CompositFsFileHandle from '../../CompositeFsFileHandle.js';
-import type { Stats, BigIntStats } from 'fs';
 import * as path from 'path';
 
 import { createFsFromVolume, IFs, memfs, Volume } from 'memfs';
@@ -25,43 +24,15 @@ import type {
   TMode,
 } from '../../../types/fs-types.js';
 
-import {
-  VirtualFileArgs,
-  VirtualFileDefinition,
-} from './virtualFiles/gitVirtualFiles.js';
-import { allGitVirtualFiles } from './virtualFiles/gitVirtualFiles.js';
 import { BaseCompositeSubFs } from '../BaseCompositeSubFs.js';
 import * as nodeFs from 'node:fs';
-import { gitBranchFileVirtualFile } from './virtualFiles/gitBranchFileVirtualFile.js';
-import { LegitPathRouter, MatchResult } from './LegitPathRouter.js';
-import { gitBranchesListVirtualFile } from './virtualFiles/gitBranchesListVirtualFile.js';
-import { gitBranchHeadVirtualFile } from './virtualFiles/gitBranchHeadVirtualFile.js';
-import { legitVirtualFile } from './virtualFiles/legitVirtualFile.js';
-import { gitCommitFileVirtualFile } from './virtualFiles/gitCommitFileVirtualFile.js';
-import { gitCommitVirtualFolder } from './virtualFiles/gitCommitVirtualFolder.js';
-import { gitBranchOperationVirtualFile } from './virtualFiles/operations/gitBranchOperationVirtualFile.js';
 
-import { gitBranchOperationsVirtualFile } from './virtualFiles/operations/gitBranchOperationsVirtualFile.js';
-import { getThreadName } from './virtualFiles/operations/getThreadName.js';
-import { gitBranchHistory } from './virtualFiles/gitBranchHistory.js';
-import { gitBranchOperationHeadVirtualFile } from './virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
-import { gitCurrentBranchVirtualFile } from './virtualFiles/gitCurrentBranchVirtualFile.js';
+import {
+  LegitPathRouter,
+  LegitRouteFolder,
+  MatchResult,
+} from './LegitPathRouter.js';
 import { toDirEntry } from './virtualFiles/utils.js';
-
-const handlers = {
-  noAdditionalFiles: () => [],
-  listBranches: () => ['main', 'dev', 'feature-x', 'feature/login'],
-  branchFile: () => 'branch file',
-  branchHead: () => 'branch head',
-  branchTip: () => 'branch tip',
-  branchOperation: () => 'branch operation',
-  commitFile: () => 'commit file',
-  commitsTwoChars: () => ['ab', 'cd', 'ef'],
-  commitsThirtyEightChars: () => [
-    'dsdasdasdasdasdasdasdasdasdasdasdasdasdas',
-    'abcdefghijklmnopqrstuvwxyz123456',
-  ],
-};
 
 const stub = async () => undefined;
 const stubStats = async () =>
@@ -86,161 +57,31 @@ const noAdditionalFiles = {
 };
 
 /**
- * 1. Path Structure Complexity
-  - Your nested .legit paths (e.g., /.legit/branch/my-branch-name/.legit/head) create redundancy
-  - Consider flattening: /.legit/branches/my-branch-name/head vs /.legit/branch/my-branch-name/.legit/head
-
-Reason for the concept: i need to distinguish .legit files from other folders, therefore i wanted to introduce .letgit as a reserved folder independent from the depth or if repeated
-Any problems you see with this?
-
-
-  2. Write Operations on Historical Data
-  - Writing to /.legit/history/commits/... paths is conceptually problematic - commits are immutable
-  - Consider read-only for historical data, write-only for branch operations
-
-  100% with you commits should be read only folders
-
-  3. Branch Head Management
-  - Using git tags for head tracking (my-branch-name_legithead) pollutes the tag namespace
-  - Alternative: Use a dedicated ref namespace like refs/legit/heads/my-branch-name
-
-Reason for the concept: i see the point with pollution of tag namespace BUT this will help existing tools to display the concept - i would start with tags and move refs to a later point in time
- - what speaks against this?
-
-  4. Conflict with Existing Virtual Files
-  - Current implementation has .status.gitbox, .branch.gitbox files
-  - Need strategy to migrate or maintain compatibility
-
-Context: the hole thing is a non published poc so no need to migrate - just an implementation change needed
-
-  Architectural Challenges
-
-  1. Performance
-  - Git operations (especially history traversal) can be expensive
-  - Current memfs caching might not scale for large repos
-  - Consider lazy loading and bounded caches
-
-   Future problem - lets not premature optimation or clear doubts?
-
-  2. Consistency
-  - Multiple write paths (working copy, branches) need careful coordination
-  - Race conditions between git operations and filesystem operations
-
-  Lets postpone this for now
-
-  3. Error Handling
-  - Git operations can fail (conflicts, invalid commits)
-  - Need clear error propagation through the FS layer
-
-  Lets discuss this deeper - dont understand the problem here.
-
-  Implementation Approach
-
-  Phase 1: Read-Only Git Views
-  // Start with immutable views
-  /.legit/status                    // Current git status
-  /.legit/commits/{sha}/path/to/file // Historical file access
-  /.legit/branches/                  // List branches
-  /.legit/refs/heads/{branch}/path   // Branch file access
-
-  Phase 2: Branch Operations
-  // Add write capabilities
-  /.legit/refs/heads/{branch}/.meta/head  // Track branch head
-  /.legit/refs/heads/{branch}/path        // Write to branch
-
-  Phase 3: Advanced Features
-  // Commit creation, branch management
-  /.legit/stage/                    // Staging area
-  /.legit/commit                    // Trigger commit
-
-  Plan sounds good!
-
-
-  Next Steps
-
-  1. Refine the path structure - Simplify and avoid nested .legit directories
-    - no please take my points into consideratio
-   
-  2. Create a proof-of-concept - Start with read-only status and commit access
- - sounds good
-
-  3. Build test infrastructure - Set up git fixture creation and FS testing utilities
-- absolutly
-
-  4. Implement incrementally - Phase approach to reduce complexity
-
-  alreight
-
-  The architecture supports your vision, but consider starting simpler and evolving based on real usage patterns.
-
-
-
-  /.legit/status                              // Git status info
-  /.legit/commits/{sha(0,1)}/{sha(2..20)}/path/to/file  // Historical files
-  /.legit/branches/                            // List branches
-  /.legit/branches/{name}/path/to/file     // Branch files (read/write)
-  /.legit/branches/{name}/.legit/head // read/write of the head commit of the branch {name}
-  /.legit/branches/{name}/.legit/tip // read/write of the tip of the branch {name} - keeping this allows undo redo ops
-
-  
+ * Topics to discuss:
+ * # Ref space polution
+ *  - Local vs Remote (we dont push all refs all the time)
+ *  - required refs (what are the miniumum refs required to keep the repo healthy)
+ *  - ref branch concept (branch pointing to oids to keep refs alive withouth poluting refs)
+ *
+ * # Performance (we tackle whens appear)
+ *  - Git operations (especially history traversal) can be expensive
+ *  - Current memfs caching might not scale for large repos
+ *  - Consider lazy loading and bounded caches
  */
+
+/**
+ * Git-backed CompositeSubFs implementation.
+ * 
+ * 
+ * docx file 
+ *  - we unpack the docx and store xml files as blobs in git
+ * mpeg file
+ *  - we chunk the file and sstsore chunks as blobs in git 
+ **/
 export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   private static readonly LEGIT_DIR = '.legit';
 
-  /**
-   * how to handle branches with slashes in them?
-   *
-   * Lets say i have a branch called my/branch/name
-   * this means i am not allowed to have a branch called my because this would conflict with
-   */
-
-  // .legit/branches/main/
-  private static pathRouter = new LegitPathRouter({
-    '.legit': {
-      '.': legitVirtualFile,
-      operation: gitBranchOperationVirtualFile,
-      head: gitBranchHeadVirtualFile,
-      operationHead: gitBranchOperationHeadVirtualFile,
-      operationHistory: gitBranchOperationsVirtualFile,
-      history: gitBranchHistory,
-      currentBranch: gitCurrentBranchVirtualFile,
-      branches: {
-        '.': gitBranchesListVirtualFile,
-        '[branchName]': {
-          // branch names could include / so this is not a good delimiter here
-          '.legit': {
-            '.': legitVirtualFile,
-            operation: gitBranchOperationVirtualFile,
-            head: gitBranchHeadVirtualFile,
-            operationHead: gitBranchOperationHeadVirtualFile,
-            operationHistory: gitBranchOperationsVirtualFile,
-            history: gitBranchHistory,
-            threadName: getThreadName,
-          },
-          '[[...filePath]]': gitBranchFileVirtualFile,
-        },
-      },
-      commits: {
-        '.': gitCommitVirtualFolder,
-        '[sha_1_1_2]': {
-          '.': gitCommitVirtualFolder,
-          '[sha1_3__40]': {
-            '[[...filePath]]': gitCommitFileVirtualFile,
-          },
-        },
-      },
-      // TODO add a compare setup
-      // compare: {
-      //   '[[aWithB]]': {
-      //     '.legit': {
-      //       'changelist': getChangeList,
-      //     }, // gitCompareVirtualFile,
-      //     '[...filePath]': gitCompareVirtualFile,
-      //   }
-      // }
-    },
-    '[[...filePath]]': gitBranchFileVirtualFile,
-  });
+  private pathRouter: LegitPathRouter;
 
   private memFs: IFs;
   private openFh: Record<
@@ -255,9 +96,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     }
   > = {};
 
-  private virtualFiles: VirtualFileDefinition[];
-  private legitFileNames: string[];
-  storageFs: CompositeFs;
+  storageFs: any;
 
   async getAuthor(): Promise<{
     name: string;
@@ -286,35 +125,26 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     parentFs,
     gitStorageFs,
     gitRoot,
-    virtualFiles = allGitVirtualFiles,
+    routerConfig,
   }: {
     name: string;
     parentFs: CompositeFs;
-    gitStorageFs: CompositeFs;
+    gitStorageFs: any;
     gitRoot: string;
-    virtualFiles?: VirtualFileDefinition[];
+    routerConfig: LegitRouteFolder;
   }) {
     super({ name, parentFs, gitRoot });
+
+    this.pathRouter = new LegitPathRouter(routerConfig);
 
     this.gitRoot = gitRoot;
     this.storageFs = gitStorageFs;
     this.memFs = createFsFromVolume(new Volume());
-    this.virtualFiles = virtualFiles;
-
-    // TODO source this from the virtual files directly
-    this.legitFileNames = ['branches', 'commits'];
   }
 
   async responsible(filePath: string): Promise<boolean> {
     return true;
     // return true this.isLegitPath(filePath);
-  }
-
-  private isLegitPath(path: string): boolean {
-    return (
-      path.includes(`/${GitSubFs.LEGIT_DIR}/`) ||
-      path.includes(`/${GitSubFs.LEGIT_DIR}`)
-    );
   }
 
   private getRouteHandler(filePath: string): MatchResult | undefined {
@@ -329,11 +159,11 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     }
     const firstLegitIndex = normalizedPath.indexOf(`/${GitSubFs.LEGIT_DIR}`);
     if (firstLegitIndex === -1) {
-      return GitSubFs.pathRouter.match(normalizedPath);
+      return this.pathRouter.match(normalizedPath);
     }
 
     const filePathWithoutLegit = normalizedPath.slice(firstLegitIndex + 1);
-    return GitSubFs.pathRouter.match(normalizedPath);
+    return this.pathRouter.match(normalizedPath);
   }
 
   /**
@@ -374,21 +204,23 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     // TODO add flags to handler definition
     if (
       flags.includes('x') &&
-      parsed?.handler.type !== 'gitBranchFileVirtualFile'
+      parsed?.handler.type !== 'gitBranchFileVirtualFile' &&
+      parsed?.handler.type !== 'claudeVirtualSessionFileVirtualFile'
     ) {
       throw new Error(
         `Exclusive operations not allowed for ${parsed?.handler.type}`
       );
     }
 
+    const author = await this.getAuthor();
     const fileFromGit = await parsed.handler.getFile({
       cacheFs: this.memFs,
       filePath,
-      // fs: this.compositFs,
+      userSpaceFs: this.compositFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
-      author: await this.getAuthor(),
+      author: author,
     });
 
     let fileExistsInCache = false;
@@ -480,15 +312,16 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const optionsToPass = options ? { options: options } : {};
 
     try {
+      const author = await this.getAuthor();
       await branchFileVf?.handler.mkdir({
         cacheFs: this.memFs,
         filePath: path.toString(),
-        // fs: this.compositFs,
+        userSpaceFs: this.compositFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: branchFileVf.params,
         ...optionsToPass,
-        author: await this.getAuthor(),
+        author: author,
       });
 
       const optionsToPassToMemfs =
@@ -528,17 +361,6 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   override async access(path: PathLike, mode?: number): Promise<void> {
     // for now just use the stats call
     await this.stat(path);
-
-    // const pathStr = path.toString();
-    // const vFileDescriptor = this.getVirtualDescriptor(pathStr);
-    // if (!vFileDescriptor) {
-    //   const legitDirMatch = this.legitFileNames.some((fn) =>
-    //     pathStr.endsWith(`.legit/${fn}`),
-    //   );
-    //   if (!legitDirMatch) {
-    //     throw new Error(`ENOENT: no such file or directory, stat '${pathStr}'`);
-    //   }
-    // }
   }
 
   override async futimes(
@@ -612,74 +434,18 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       throw new Error(`ENOENT: no such file or directory, stat '${pathStr}'`);
     }
 
+    const author = await this.getAuthor();
     const stats = await parsed.handler.getStats({
       cacheFs: this.memFs,
       filePath: pathStr,
-      // fs: this.compositFs,
+      userSpaceFs: this.compositFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
-      author: await this.getAuthor(),
+      author,
     });
 
     return stats;
-
-    // Create synthetic stats
-    // const now = new Date();
-    // const stats: Stats = {
-    //   dev: 0,
-    //   ino: 0,
-    //   mode: file.mode || (file.type === "directory" ? 0o755 : 0o644),
-    //   nlink: 1,
-    //   uid: process.getuid ? process.getuid() : 0,
-    //   gid: process.getgid ? process.getgid() : 0,
-    //   rdev: 0,
-    //   size: file.size || (file.content ? Buffer.byteLength(file.content) : 0),
-    //   blksize: 4096,
-    //   blocks: 0,
-    //   atimeMs: now.getTime(),
-    //   mtimeMs: now.getTime(),
-    //   ctimeMs: now.getTime(),
-    //   birthtimeMs: now.getTime(),
-    //   atime: now,
-    //   mtime: now,
-    //   ctime: now,
-    //   birthtime: now,
-    //   isBlockDevice: () => false,
-    //   isCharacterDevice: () => false,
-    //   isDirectory: () => file.type === "directory",
-    //   isFIFO: () => false,
-    //   isFile: () => file.type === "file",
-    //   isSocket: () => false,
-    //   isSymbolicLink: () => false,
-    // };
-
-    // if (opts && (opts as any).bigint) {
-    //   // Convert to BigIntStats
-    //   return {
-    //     ...stats,
-    //     dev: BigInt(stats.dev),
-    //     ino: BigInt(stats.ino),
-    //     mode: BigInt(stats.mode),
-    //     nlink: BigInt(stats.nlink),
-    //     uid: BigInt(stats.uid),
-    //     gid: BigInt(stats.gid),
-    //     rdev: BigInt(stats.rdev),
-    //     size: BigInt(stats.size),
-    //     blksize: BigInt(stats.blksize),
-    //     blocks: BigInt(stats.blocks),
-    //     atimeMs: BigInt(stats.atimeMs),
-    //     mtimeMs: BigInt(stats.mtimeMs),
-    //     ctimeMs: BigInt(stats.ctimeMs),
-    //     birthtimeMs: BigInt(stats.birthtimeMs),
-    //     atimeNs: BigInt(stats.atimeMs * 1000000),
-    //     mtimeNs: BigInt(stats.mtimeMs * 1000000),
-    //     ctimeNs: BigInt(stats.ctimeMs * 1000000),
-    //     birthtimeNs: BigInt(stats.birthtimeMs * 1000000),
-    //   } as BigIntStats;
-    // }
-
-    // return stats;
   }
 
   override async lstat(
@@ -757,6 +523,10 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
   ): Promise<string[] | Buffer[] | nodeFs.Dirent[]> {
     const pathStr = path.toString();
 
+    // if (!this.isLegitPath(pathStr)) {
+    //   return ['.legit'] as string[];
+    // }
+
     const parsed = this.getRouteHandler(pathStr);
 
     if (!parsed) {
@@ -765,14 +535,15 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       );
     }
 
+    const author = await this.getAuthor();
     const result = await parsed?.handler.getFile({
       cacheFs: this.memFs,
       filePath: pathStr,
-      // fs: this.compositFs,
+      userSpaceFs: this.compositFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
-      author: await this.getAuthor(),
+      author,
     });
 
     if (result) {
@@ -861,14 +632,15 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     // if there is no unflushed change - read the object directly from git
     if (openFh.unflushed.length === 0) {
       const parsed = this.getRouteHandler(openFh.path);
+      const author = await this.getAuthor();
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh.path,
-        // fs: this.compositFs,
+        userSpaceFs: this.compositFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed?.params,
-        author: await this.getAuthor(),
+        author,
       });
 
       if (!fileFromGit?.content) {
@@ -938,14 +710,15 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       // NOTE for no we realize the whole file
 
       const parsed = this.getRouteHandler(openFh.path);
+      const author = await this.getAuthor();
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh!.path,
-        // fs: this.compositFs,
+        userSpaceFs: this.compositFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed!.params,
-        author: await this.getAuthor(),
+        author: author,
       });
 
       if (fileFromGit && fileFromGit.oid) {
@@ -1004,15 +777,16 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         const content = await this.memFs.promises.readFile(openFh.path);
 
         // Write to git using the virtual file descriptor
+        const author = await this.getAuthor();
         await pathHandler.handler.writeFile({
           cacheFs: this.memFs,
           filePath: openFh.path,
-          // fs: this.compositFs,
+          userSpaceFs: this.compositFs,
           gitRoot: this.gitRoot,
           nodeFs: this.storageFs,
           content: content,
           pathParams: pathHandler.params,
-          author: await this.getAuthor(),
+          author: author,
         });
       }
 
@@ -1191,16 +965,17 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         throw new Error('VF not found');
       }
 
+      const author = await this.getAuthor();
       const result = await branchFileVf.handler.rename({
         cacheFs: this.memFs,
         filePath: oldPathStr,
-        // fs: this.compositFs,
+        userSpaceFs: this.compositFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         newPath: newPathStr,
         pathParams: branchFileVf?.params ?? {},
         newPathParams: newParsed?.params ?? {},
-        author: await this.getAuthor(),
+        author,
       });
 
       // } else if (oldParsed.type === "branch-file" && !newParsed.isLegitPath) {
@@ -1227,14 +1002,15 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
 
     if (parsed?.handler.unlink !== undefined) {
       try {
+        const author = await this.getAuthor();
         await parsed.handler.unlink({
           cacheFs: this.memFs,
           filePath: pathStr,
-          // fs: this.compositFs,
+          userSpaceFs: this.compositFs,
           nodeFs: this.storageFs,
           gitRoot: this.gitRoot,
           pathParams: parsed.params,
-          author: await this.getAuthor(),
+          author,
         });
       } catch (err) {
         // if the file was only written i memory unlink will fail
@@ -1272,14 +1048,15 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const parsed = this.getRouteHandler(pathStr);
 
     if (parsed?.handler.rmdir !== undefined) {
+      const author = await this.getAuthor();
       await parsed.handler.rmdir({
         cacheFs: this.memFs,
         filePath: pathStr,
-        // fs: this.compositFs,
+        userSpaceFs: this.compositFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: parsed.params,
-        author: await this.getAuthor(),
+        author,
       });
       let existsInMem = false;
       for (const [fd, fh] of Object.entries(this.openFh)) {

@@ -3,6 +3,7 @@ import {
   tryResolveRef,
   resolveGitObjAtPath,
   buildUpdatedTree,
+  buildUpdatedTreeFromArgs,
 } from './utils.js';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
@@ -14,69 +15,20 @@ import Dirent from 'memfs/lib/node/Dirent.js';
 import { IDirent } from 'memfs/lib/node/types/misc.js';
 import { decodeBranchNameFromVfs } from './operations/nameEncoding.js';
 
-// .legit/branches/[branch-name]/[[...filepath]] -> file or folder at path in branch
-
-async function buildTreeWithoutFile(
-  compositFs: CompositeFs,
-  gitRoot: string,
-  treeOid: string,
-  pathParts: string[]
-): Promise<string> {
-  const [currentPart, ...restParts] = pathParts;
-
-  if (!currentPart) {
-    return treeOid;
+function getGitCacheFromFs(fs: any): any {
+  // If it's a CompositeFs with gitCache, use it
+  if (fs && fs.gitCache !== undefined) {
+    return fs.gitCache;
   }
-
-  const { tree } = await git.readTree({
-    fs: compositFs,
-    dir: gitRoot,
-    oid: treeOid,
-  });
-
-  let newEntries = [...tree];
-  const entryIndex = newEntries.findIndex(e => e.path === currentPart);
-
-  if (entryIndex === -1) {
-    // File doesn't exist, return unchanged tree
-    return treeOid;
+  // If it has a parent, traverse up to find the gitCache
+  if (fs && fs.parentFs) {
+    return getGitCacheFromFs(fs.parentFs);
   }
-
-  if (restParts.length === 0) {
-    // Remove the file entry
-    newEntries.splice(entryIndex, 1);
-  } else {
-    // Recurse into subdirectory
-    const entry = newEntries[entryIndex];
-    if (entry && entry.type === 'tree') {
-      const newSubtreeOid = await buildTreeWithoutFile(
-        compositFs,
-        gitRoot,
-        entry.oid,
-        restParts
-      );
-      if (newSubtreeOid !== entry.oid) {
-        newEntries[entryIndex] = {
-          mode: entry.mode,
-          path: entry.path,
-          type: entry.type,
-          oid: newSubtreeOid,
-        };
-      } else {
-        return treeOid; // No changes
-      }
-    } else {
-      return treeOid; // Can't traverse into a blob
-    }
-  }
-
-  // Write new tree
-  return await git.writeTree({
-    fs: compositFs,
-    dir: gitRoot,
-    tree: newEntries,
-  });
+  // Default to empty object if no cache found
+  return {};
 }
+
+// .legit/branches/[branch-name]/[[...filepath]] -> file or folder at path in branch
 
 /**
  * # How to present an empyt folder in git
@@ -161,7 +113,14 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
   type: 'gitBranchFileVirtualFile',
   rootType: 'folder',
 
-  getStats: async ({ gitRoot, nodeFs, filePath, cacheFs, pathParams }) => {
+  getStats: async ({
+    gitRoot,
+    nodeFs,
+    filePath,
+    cacheFs,
+    pathParams,
+    userSpaceFs,
+  }) => {
     if (pathParams.branchName === undefined) {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
@@ -188,6 +147,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       nodeFs,
       commitSha: branchCommit,
       pathParams,
+      gitCache: getGitCacheFromFs(userSpaceFs),
     });
 
     if (!fileOrFolder) {
@@ -289,7 +249,14 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       } as any;
     }
   },
-  getFile: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
+  getFile: async ({
+    filePath,
+    gitRoot,
+    nodeFs,
+    cacheFs,
+    pathParams,
+    userSpaceFs,
+  }) => {
     if (pathParams.branchName === undefined) {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
@@ -316,11 +283,15 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
           object: currentHead,
         });
 
-        branchCommit = await git.resolveRef({
-          fs: nodeFs,
-          ref: `refs/heads/${pathParams.branchName}`,
-          dir: gitRoot,
-        });
+        branchCommit = await tryResolveRef(
+          nodeFs,
+          gitRoot,
+          pathParams.branchName
+        );
+
+        if (!branchCommit) {
+          throw new Error('Could not create branch for getFile');
+        }
       }
       const fileOrFolder = await resolveGitObjAtPath({
         filePath,
@@ -328,6 +299,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         nodeFs,
         commitSha: branchCommit,
         pathParams,
+        gitCache: getGitCacheFromFs(userSpaceFs),
       });
 
       if (!fileOrFolder) {
@@ -558,6 +530,16 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
         value: newCommitOid,
         force: true,
       });
+
+      const newBranchCommit = await tryResolveRef(
+        nodeFs,
+        gitRoot,
+        pathParams.branchName
+      );
+
+      if (newCommitOid !== newBranchCommit) {
+        throw new Error('Failed to update branch after file deletion');
+      }
     }
 
     // try {
@@ -575,6 +557,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     pathParams,
     newPathParams,
     author,
+    userSpaceFs,
   }): Promise<void> {
     // Parse the path to get branch name and file path
 
@@ -646,6 +629,7 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       commitSha: oldBranchCommit,
       filePath: filePath,
       pathParams: pathParams,
+      gitCache: getGitCacheFromFs(userSpaceFs),
     });
 
     if (existingAtOldPath === undefined) {
@@ -713,8 +697,17 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
       // throw new Error('branchName should be in pathParams');
     }
 
+    let branchCommit = await tryResolveRef(
+      args.nodeFs,
+      args.gitRoot,
+      args.pathParams.branchName
+    );
+
     if (args.pathParams.filePath === undefined) {
-      throw new Error('filePath should be in pathParams');
+      args.pathParams.filePath = '/';
+      if (branchCommit !== undefined) {
+        throw new Error('Folder exists');
+      }
     }
 
     try {
@@ -731,12 +724,6 @@ export const gitBranchFileVirtualFile: VirtualFileDefinition = {
     if (args.pathParams && typeof args.pathParams.filePath === 'string') {
       args.pathParams.filePath = args.pathParams.filePath.replace(/\/+$/, '');
     }
-
-    let branchCommit = await tryResolveRef(
-      args.nodeFs,
-      args.gitRoot,
-      args.pathParams.branchName
-    );
 
     if (!branchCommit) {
       // Get the current branch/HEAD to use as base for new branch

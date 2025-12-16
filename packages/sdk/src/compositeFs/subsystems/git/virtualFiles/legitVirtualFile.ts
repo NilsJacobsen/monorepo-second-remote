@@ -8,7 +8,7 @@ export const legitVirtualFile: VirtualFileDefinition = {
   getStats: async ({ gitRoot, nodeFs }) => {
     const gitDir = gitRoot + '/' + '.git';
     try {
-      const gitStats = await nodeFs.stat(gitDir);
+      const gitStats = await nodeFs.promises.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT
@@ -17,13 +17,13 @@ export const legitVirtualFile: VirtualFileDefinition = {
   },
 
   getFile: async ({ gitRoot, nodeFs }) => {
-    // return {
-    //   type: 'directory',
-    //   content: [],
-    //   mode: 0o755,
-    //   size: 0,
-    // };
-    throw new Error('not implemented');
+    return {
+      type: 'directory',
+      content: [],
+      mode: 0o755,
+      size: 0,
+    };
+    // throw new Error('not implemented');
   },
   rename(args) {
     throw new Error('not implemented');

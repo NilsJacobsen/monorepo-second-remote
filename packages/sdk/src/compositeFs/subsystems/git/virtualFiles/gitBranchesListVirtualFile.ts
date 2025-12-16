@@ -2,7 +2,6 @@ import git from 'isomorphic-git';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
 import * as nodeFs from 'node:fs';
-import { PathLike } from 'node:fs';
 import { toDirEntry } from './utils.js';
 import { encodeBranchNameForVfs } from './operations/nameEncoding.js';
 
@@ -15,7 +14,7 @@ export const gitBranchesListVirtualFile: VirtualFileDefinition = {
   getStats: async ({ gitRoot, nodeFs }) => {
     const gitDir = gitRoot + '/' + '.git';
     try {
-      const gitStats = await nodeFs.stat(gitDir);
+      const gitStats = await nodeFs.promises.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT
