@@ -8,7 +8,11 @@
   "module": "./index.js",
   "exports": {
     ".": {
-      "types": "./index.d.cts",
+      "require": {
+        "types": "./index.d.cts",
+        "default": "./index.cjs"
+      },
+      "types": "./index.d.ts",
       "default": "./index.cjs"
     },
     "./http/node": {
