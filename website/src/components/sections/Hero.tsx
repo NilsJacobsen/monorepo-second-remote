@@ -8,6 +8,7 @@ import Font from '../Font';
 import PrimaryButton from '../PrimaryButton';
 import SmallGrid from '../SmallGrid';
 import { ArrowUpRightIcon } from '@heroicons/react/24/outline';
+import Demo from '../Demo';
 
 const data = {
   title: (
@@ -123,6 +124,7 @@ const Hero = () => {
         <Font type="p" className="text-zinc-500 mb-6 mt-4">
           {data.description}
         </Font>
+        {/* TODO remove the second github button and just keep the star button */}
         <div className="flex items-center gap-3 mb-6">
           {data.secondary_buttons.map((button, i) => (
             <a
@@ -136,12 +138,12 @@ const Hero = () => {
               rel="noopener noreferrer"
               className="group font-mono text-sm text-zinc-800 border border-zinc-200 px-3 py-1.5 hover:bg-zinc-100 transition-all duration-100 flex items-center gap-2 w-fit"
             >
-              <p className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
                 <span className="text-zinc-400 group-hover:text-black">
                   {'// '}
                 </span>{' '}
                 {button.title}
-              </p>
+              </div>
               <ArrowUpRightIcon className="w-4 h-4" />
             </a>
           ))}
@@ -149,6 +151,9 @@ const Hero = () => {
         <PrimaryButton href={data.main_button.link}>
           {data.main_button.title}
         </PrimaryButton>
+      </div>
+      <div className="col-span-12 lg:col-span-10 lg:col-start-2 mt-24">
+        <Demo />
       </div>
       <div className="col-span-12 lg:col-span-10 lg:col-start-2 flex flex-wrap gap-x-4 gap-y-12 mt-24">
         {data.benefits.map(benefit => (
