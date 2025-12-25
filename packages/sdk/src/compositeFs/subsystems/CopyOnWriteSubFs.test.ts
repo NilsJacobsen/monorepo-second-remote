@@ -14,10 +14,10 @@ describe('CopyOnWriteSubFs', () => {
   beforeEach(() => {
     // Create source filesystem with some initial data
     sourceFs = createFsFromVolume(new Volume());
-    sourceFs.writeFileSync('/original.txt', 'original content', 'utf8');
-    sourceFs.writeFileSync('/data.json', '{"key": "value"}', 'utf8');
+    sourceFs.writeFileSync('/original.txt', 'original content');
+    sourceFs.writeFileSync('/data.json', '{"key": "value"}');
     sourceFs.mkdirSync('/source-dir', { recursive: true });
-    sourceFs.writeFileSync('/source-dir/file.txt', 'source file', 'utf8');
+    sourceFs.writeFileSync('/source-dir/file.txt', 'source file');
 
     // Create empty copy filesystem
     copyToFs = createFsFromVolume(new Volume());
@@ -32,7 +32,7 @@ describe('CopyOnWriteSubFs', () => {
       parentFs,
       sourceFs,
       copyToFs,
-      copyPath: '/copies',
+      copyToRootPath: '/copies',
       patterns: ['*.txt', 'data/**', 'specific-file.md'],
     });
   });
@@ -59,7 +59,7 @@ describe('CopyOnWriteSubFs', () => {
         parentFs,
         sourceFs,
         copyToFs,
-        copyPath: '/copies',
+        copyToRootPath: '/copies',
         patterns: ['*.txt', '!important.txt'],
       });
 
@@ -97,7 +97,7 @@ describe('CopyOnWriteSubFs', () => {
 
       it('should read from sourceFs for files not in patterns', async () => {
         // This file exists in source but doesn't match patterns
-        sourceFs.writeFileSync('/other.log', 'log data', 'utf8');
+        sourceFs.writeFileSync('/other.log', 'log data');
 
         // Should still be readable since it falls through
         const content = await copyOnWriteFs.readFile('/other.log', 'utf8');
@@ -236,8 +236,8 @@ describe('CopyOnWriteSubFs', () => {
     describe('readdir()', () => {
       beforeEach(() => {
         sourceFs.mkdirSync('/test-dir', { recursive: true });
-        sourceFs.writeFileSync('/test-dir/file1.txt', 'content1', 'utf8');
-        sourceFs.writeFileSync('/test-dir/file2.txt', 'content2', 'utf8');
+        sourceFs.writeFileSync('/test-dir/file1.txt', 'content1');
+        sourceFs.writeFileSync('/test-dir/file2.txt', 'content2');
       });
 
       it('should list directory from source when not copied', async () => {
@@ -247,7 +247,7 @@ describe('CopyOnWriteSubFs', () => {
           parentFs,
           sourceFs,
           copyToFs,
-          copyPath: '/copies',
+          copyToRootPath: '/copies',
           patterns: ['test-dir/**'],
         });
 
@@ -262,7 +262,7 @@ describe('CopyOnWriteSubFs', () => {
           parentFs,
           sourceFs,
           copyToFs,
-          copyPath: '/copies',
+          copyToRootPath: '/copies',
           patterns: ['test-dir/**'],
         });
 
@@ -396,7 +396,7 @@ describe('CopyOnWriteSubFs', () => {
   describe('path handling', () => {
     it('should handle nested paths correctly', async () => {
       sourceFs.mkdirSync('/data/subdir', { recursive: true });
-      sourceFs.writeFileSync('/data/subdir/file.txt', 'nested', 'utf8');
+      sourceFs.writeFileSync('/data/subdir/file.txt', 'nested');
 
       const content = await copyOnWriteFs.readFile(
         '/data/subdir/file.txt',

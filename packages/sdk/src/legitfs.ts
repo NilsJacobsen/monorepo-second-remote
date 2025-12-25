@@ -3,7 +3,7 @@ import { createLegitSyncService } from './sync/createLegitSyncService.js';
 import git from 'isomorphic-git';
 
 import { CompositeFs } from './compositeFs/CompositeFs.js';
-import { EphemeralSubFs } from './compositeFs/subsystems/EphemeralFileSubFs.js';
+import { CopyOnWriteSubFs } from './compositeFs/subsystems/CopyOnWriteSubFs.js';
 import { GitSubFs } from './compositeFs/subsystems/git/GitSubFs.js';
 import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
@@ -174,11 +174,16 @@ export async function openLegitFs({
     name: 'root',
   });
 
-  const rootEphemeralFs = new EphemeralSubFs({
-    name: 'root-ephemeral',
-    parentFs: gitStorageFs,
+  // Create an in-memory filesystem for copy-on-write storage
+  const copyFs = createFsFromVolume(new Volume());
 
-    ephemeralPatterns: ephemaralGitConfig ? ['**/.git/config'] : [],
+  const rootCopyOnWriteFs = new CopyOnWriteSubFs({
+    name: 'root-copy-on-write',
+    parentFs: gitStorageFs,
+    sourceFs: storageFs,
+    copyToFs: copyFs,
+    copyPath: '/copies',
+    patterns: ephemaralGitConfig ? ['**/.git/config'] : [],
   });
 
   const rootHiddenFs = new HiddenFileSubFs({
@@ -195,15 +200,8 @@ export async function openLegitFs({
   });
 
   gitStorageFs.setHiddenFilesSubFs(rootHiddenFs);
-  gitStorageFs.setEphemeralFilesSubFs(rootEphemeralFs);
+  gitStorageFs.setEphemeralFilesSubFs(rootCopyOnWriteFs);
   gitStorageFs.addSubFs(rootPassThroughFileSystem);
-
-  if (ephemaralGitConfig) {
-    const config = await storageFs.promises.readFile(gitRoot + '/.git/config', {
-      encoding: 'utf-8',
-    });
-    await gitStorageFs.writeFile(gitRoot + '/.git/config', config, 'utf-8');
-  }
 
   const userSpaceFs = new CompositeFs({
     name: 'git',
@@ -279,11 +277,23 @@ export async function openLegitFs({
   const gitFsHiddenFs = new HiddenFileSubFs({
     name: 'git-hidden-subfs',
     parentFs: userSpaceFs,
-
     hiddenFiles,
   });
 
-  const ephemeralPatterns: string[] = [
+  // Read .gitignore file to add patterns to copy-on-write
+  let gitignorePatterns: string[] = [];
+  try {
+    const gitignorePath = gitRoot + '/.gitignore';
+    const gitignoreContent = await gitStorageFs.readFile(gitignorePath, 'utf8');
+    gitignorePatterns = gitignoreContent
+      .split('\n')
+      .filter(line => line.trim() !== '' && !line.trim().startsWith('#'))
+      .map(line => line.trim());
+  } catch (error) {
+    // .gitignore doesn't exist or can't be read, that's okay
+  }
+
+  const copyOnWritePatterns: string[] = [
     '**/._*',
     '**/.DS_Store',
     '**/.AppleDouble/',
@@ -303,19 +313,25 @@ export async function openLegitFs({
     '**/.metaentries.json.tmp',
     '**/**.tmp.**',
     '**/**.sb-**',
+    ...gitignorePatterns, // Add patterns from .gitignore
   ];
 
-  const gitFsEphemeralFs = new EphemeralSubFs({
-    name: 'git-ephemeral-subfs',
-    parentFs: userSpaceFs,
+  // Create an in-memory filesystem for copy-on-write storage
+  const userCopyFs = createFsFromVolume(new Volume());
 
-    ephemeralPatterns,
+  const gitFsCopyOnWriteFs = new CopyOnWriteSubFs({
+    name: 'git-copy-on-write-subfs',
+    parentFs: userSpaceFs,
+    sourceFs: gitStorageFs,
+    copyToFs: userCopyFs,
+    copyPath: '/user-copies',
+    patterns: copyOnWritePatterns,
   });
 
   // Add legitFs to compositFs
   userSpaceFs.addSubFs(gitSubFs);
   userSpaceFs.setHiddenFilesSubFs(gitFsHiddenFs);
-  userSpaceFs.setEphemeralFilesSubFs(gitFsEphemeralFs);
+  userSpaceFs.setEphemeralFilesSubFs(gitFsCopyOnWriteFs);
 
   const tokenStore = createGitConfigTokenStore({
     storageFs: gitStorageFs as any,

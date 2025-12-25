@@ -2,7 +2,15 @@ import * as nodeFs from 'node:fs';
 import CompositFsFileHandle from '../CompositeFsFileHandle.js';
 import type { PathLike } from 'fs';
 import * as path from 'path';
-import { TMode, TFileHandleReadResult, TFileHandleWriteResult, TFileHandleWritevResult, TFileHandleReadvResult, IStats, TTime } from 'memfs/lib/node/types/misc.js';
+import {
+  TMode,
+  TFileHandleReadResult,
+  TFileHandleWriteResult,
+  TFileHandleWritevResult,
+  TFileHandleReadvResult,
+  IStats,
+  TTime,
+} from 'memfs/lib/node/types/misc.js';
 import { IStatOptions } from 'memfs/lib/node/types/options.js';
 import { BaseCompositeSubFs } from './BaseCompositeSubFs.js';
 import type {
@@ -11,6 +19,7 @@ import type {
   TData,
   TDataOut,
   IFileHandle,
+  CompositeSubFsDir,
 } from '../../types/fs-types.js';
 import { CompositeFs } from '../CompositeFs.js';
 import { CompositeFsDir } from '../CompositeFsDir.js';
@@ -38,14 +47,14 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
     parentFs,
     sourceFs,
     copyToFs,
-    copyPath,
+    copyToRootPath,
     patterns,
   }: {
     name: string;
     parentFs: CompositeFs;
     sourceFs: any;
     copyToFs: any;
-    copyPath: string;
+    copyToRootPath: string;
     patterns: string[];
   }) {
     super({
@@ -56,7 +65,7 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
     this.compositFs = parentFs;
     this.sourceFs = sourceFs;
     this.copyToFs = copyToFs;
-    this.copyPath = copyPath;
+    this.copyPath = copyToRootPath;
     this.patterns = patterns;
 
     this.ig = ignore();
@@ -64,14 +73,16 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
   }
 
   private normalizeCopyPath(filePath: string | PathLike): string {
-    const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    const pathStr =
+      typeof filePath === 'string' ? filePath : filePath.toString();
     // Convert to absolute path for copy filesystem
     const normalized = pathStr.startsWith('/') ? pathStr : '/' + pathStr;
     return path.join(this.copyPath, normalized);
   }
 
   private normalizePath(filePath: string | PathLike): string {
-    const pathStr = typeof filePath === 'string' ? filePath : filePath.toString();
+    const pathStr =
+      typeof filePath === 'string' ? filePath : filePath.toString();
     // Ensure paths are absolute
     if (!pathStr.startsWith('/')) {
       return '/' + pathStr;
@@ -143,7 +154,8 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
     const copyPath = this.normalizeCopyPath(filePath);
 
     // Check if this is a write operation
-    const isWrite = flags.includes('w') || flags.includes('a') || flags.includes('+');
+    const isWrite =
+      flags.includes('w') || flags.includes('a') || flags.includes('+');
 
     if (isWrite) {
       // Ensure parent directory exists in copyToFs first
@@ -229,9 +241,9 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
 
     // Check copyToFs first
     try {
-      return await this.copyToFs.promises.stat(copyPath, {
+      return (await this.copyToFs.promises.stat(copyPath, {
         bigint: opts?.bigint ?? false,
-      }) as any;
+      })) as any;
     } catch {
       // Fall back to sourceFs
       return this.sourceFs.promises.stat(normalizedPath, {
@@ -261,9 +273,9 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
 
     // Check copyToFs first
     try {
-      return await this.copyToFs.promises.lstat(copyPath, {
+      return (await this.copyToFs.promises.lstat(copyPath, {
         bigint: opts?.bigint ?? false,
-      }) as any;
+      })) as any;
     } catch {
       // Fall back to sourceFs
       return this.sourceFs.promises.lstat(normalizedPath, {
@@ -315,10 +327,7 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
     await this.copyToFs.promises.mkdir(copyPath, options as any);
   }
 
-  override async readdir(
-    readdirPath: PathLike,
-    ...args: any[]
-  ): Promise<any> {
+  override async readdir(readdirPath: PathLike, ...args: any[]): Promise<any> {
     const normalizedPath = this.normalizePath(readdirPath);
     const copyPath = this.normalizeCopyPath(readdirPath);
 
@@ -332,16 +341,23 @@ export class CopyOnWriteSubFs extends BaseCompositeSubFs {
         ...args
       );
       if (Array.isArray(sourceResult)) {
-        sourceResult.forEach((e: any) => sourceEntries.add(typeof e === 'string' ? e : e.name));
+        sourceResult.forEach((e: any) =>
+          sourceEntries.add(typeof e === 'string' ? e : e.name)
+        );
       }
     } catch (error: any) {
       if (error.code !== 'ENOENT') throw error;
     }
 
     try {
-      const copyResult = await this.copyToFs.promises.readdir(copyPath, ...args);
+      const copyResult = await this.copyToFs.promises.readdir(
+        copyPath,
+        ...args
+      );
       if (Array.isArray(copyResult)) {
-        copyResult.forEach((e: any) => copyEntries.add(typeof e === 'string' ? e : e.name));
+        copyResult.forEach((e: any) =>
+          copyEntries.add(typeof e === 'string' ? e : e.name)
+        );
       }
     } catch (error: any) {
       if (error.code !== 'ENOENT') throw error;

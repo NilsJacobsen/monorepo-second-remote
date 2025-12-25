@@ -1094,6 +1094,105 @@ describe('readdir .claude', () => {
       'test-file.txt'
     );
   });
+
+  it('should handle readdir of gitignored folder that exists in working copy', async () => {
+    // Create a .gitignore file that ignores a folder
+    const gitignoreContent =
+      '# Ignore node_modules\nnode_modules/\n# Ignore build folder\nbuild/\n';
+    await memfs.promises.writeFile(`${repoPath}/.gitignore`, gitignoreContent);
+
+    // Commit the .gitignore file
+    await isogit.add({
+      fs: memfs,
+      dir: repoPath,
+      filepath: '.gitignore',
+    });
+    await isogit.commit({
+      fs: memfs,
+      dir: repoPath,
+      message: 'Add .gitignore',
+      author: { name: 'Test', email: 'test@example.com', timestamp: 1 },
+    });
+
+    // Create a new legitfs instance to pick up the new .gitignore patterns
+    const newLegitfs = await openLegitFs({
+      storageFs: memfs,
+      gitRoot: repoPath,
+      anonymousBranch: 'main',
+      showKeepFiles: false,
+    });
+
+    // Create a gitignored folder in the working copy (not in git)
+    const nodeModulesPath = `${repoPath}/node_modules`;
+    await memfs.promises.mkdir(nodeModulesPath, { recursive: true });
+    await memfs.promises.writeFile(
+      `${nodeModulesPath}/package.json`,
+      '{"name": "test"}'
+    );
+
+    // The folder should be readable via legitfs readdir
+    const entries = await newLegitfs.promises.readdir(repoPath);
+    expect(entries).toContain('node_modules');
+
+    // We should be able to read the contents of the gitignored folder
+    const nodeModulesEntries =
+      await newLegitfs.promises.readdir(nodeModulesPath);
+    expect(nodeModulesEntries).toContain('package.json');
+
+    // We should be able to read files inside the gitignored folder
+    const packageJsonContent = await newLegitfs.promises.readFile(
+      `${nodeModulesPath}/package.json`,
+      'utf-8'
+    );
+    expect(packageJsonContent).toBe('{"name": "test"}');
+
+    // Files written to gitignored folders should be copy-on-write
+    // (written to copy filesystem, not source filesystem)
+    await newLegitfs.promises.writeFile(
+      `${nodeModulesPath}/test.txt`,
+      'test content'
+    );
+
+    // The file should NOT exist in the underlying storageFs
+    // because gitignored files are copy-on-write
+    const existsInStorage = await memfs.promises
+      .access(`${nodeModulesPath}/test.txt`)
+      .then(() => true)
+      .catch(() => false);
+    expect(existsInStorage).toBe(false);
+
+    // But should be readable through legitfs (from copy filesystem)
+    const testContent = await newLegitfs.promises.readFile(
+      `${nodeModulesPath}/test.txt`,
+      'utf-8'
+    );
+    expect(testContent).toBe('test content');
+
+    // Modifying the file should also use copy-on-write
+    await newLegitfs.promises.writeFile(
+      `${nodeModulesPath}/test.txt`,
+      'modified content'
+    );
+    const modifiedContent = await newLegitfs.promises.readFile(
+      `${nodeModulesPath}/test.txt`,
+      'utf-8'
+    );
+    expect(modifiedContent).toBe('modified content');
+
+    // Original file in storageFs should remain unchanged
+    const originalFileExists = await memfs.promises
+      .access(`${nodeModulesPath}/package.json`)
+      .then(() => true)
+      .catch(() => false);
+    expect(originalFileExists).toBe(true);
+
+    // And the original content should still be readable through legitfs
+    const originalContent = await newLegitfs.promises.readFile(
+      `${nodeModulesPath}/package.json`,
+      'utf-8'
+    );
+    expect(originalContent).toBe('{"name": "test"}');
+  });
 });
 
 describe('openLegitFsWithMemoryFs', () => {
