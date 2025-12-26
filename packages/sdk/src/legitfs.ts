@@ -182,7 +182,8 @@ export async function openLegitFs({
     parentFs: gitStorageFs,
     sourceFs: storageFs,
     copyToFs: copyFs,
-    copyPath: '/copies',
+    copyToRootPath: '/copies',
+    sourceRootPath: gitRoot,
     patterns: ephemaralGitConfig ? ['**/.git/config'] : [],
   });
 
@@ -324,7 +325,8 @@ export async function openLegitFs({
     parentFs: userSpaceFs,
     sourceFs: gitStorageFs,
     copyToFs: userCopyFs,
-    copyPath: '/user-copies',
+    copyToRootPath: '/user-copies',
+    sourceRootPath: gitRoot,
     patterns: copyOnWritePatterns,
   });
 

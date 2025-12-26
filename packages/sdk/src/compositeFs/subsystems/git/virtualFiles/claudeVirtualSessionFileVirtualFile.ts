@@ -37,9 +37,9 @@ const settingsContent = JSON.stringify(
  *       ├── debug -> appendonly files
  *       |    └──  [sesion_id].txt -> append debug logs (dont persist only in chache fs) - example: d01fb69a-a987-4b53-9caf-3c49ce3a3504.txt
  *       ├── projects
- *       |    ├── [working-path] -> The current path where / is replaced with -
- *       |    |    └──  [sesion_id].jsonl -> append debug logs (dont persist only in chache fs)
- *       ├── todos -> not sure what this is for yet
+ *       |    └── [working-path] -> The current path where / is replaced with -
+ *       |         └──  [sesion_id].jsonl -> append debug logs (dont persist only in chache fs)
+ *       └──  todos -> not sure what this is for yet
  *
  *
  * # Claude legit flow:
