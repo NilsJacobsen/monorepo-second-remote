@@ -94,6 +94,12 @@ export type CompositeSubFs = Pick<
   | 'symlink'
 > & {
   name: string;
+
+  readDirFiltering?(
+    path: fsDisk.PathLike,
+    entries: string[]
+  ): Promise<string[]>;
+
   readFile(
     path: fsDisk.PathLike | IFileHandle,
     options?: IReadFileOptions | string

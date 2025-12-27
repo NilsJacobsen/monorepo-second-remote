@@ -18,8 +18,8 @@ import { FsOperationLogger } from './utils/fs-operation-logger.js';
  *
  * The responisbility is probed in the following order:
  *
- * hiddenFilesFileSystem -> ephemeralFilesFileSystem -> other subFs in order of addition -> passThroughFileSystem
- *
+ * hiddenFilesFileSystem -> ephemeralFilesFileSystem -> other subFs in order of addition
+ * 
  * Composit fs consists of two special sub filesystems:
  *
  * HiddenFilesSubFs - a filesystem that makes files inaccessible from the user
@@ -101,8 +101,7 @@ export class CompositeFs {
     ) => Promise<void>;
     getFilehandle: (fd: number) => CompositFsFileHandle | undefined;
   };
-  ephemeralFilesFileSystem: CompositeSubFs | undefined;
-  hiddenFilesFileSystem: CompositeSubFs | undefined;
+
   subFilesystems: CompositeSubFs[] = [];
   parentFs: CompositeFs | undefined;
   name: string;
@@ -183,14 +182,6 @@ export class CompositeFs {
     return this.openFileHandles.get(fd);
   }
 
-  setEphemeralFilesSubFs(subFs: CompositeSubFs) {
-    this.ephemeralFilesFileSystem = subFs;
-  }
-
-  setHiddenFilesSubFs(subFs: CompositeSubFs) {
-    this.hiddenFilesFileSystem = subFs;
-  }
-
   addSubFs(subFs: CompositeSubFs) {
     this.subFilesystems.push(subFs);
   }
@@ -210,20 +201,6 @@ export class CompositeFs {
    * @returns
    */
   private async getResponsibleFs(filePath: nodeFs.PathLike) {
-    if (!this.hiddenFilesFileSystem) {
-      throw new Error(this.name + ' intialize hidden fs first!');
-    }
-
-    if (!this.ephemeralFilesFileSystem) {
-      throw new Error(this.name + ' intialize ephemeral fs first!');
-    }
-
-    if (await this.hiddenFilesFileSystem.responsible(filePath.toString())) {
-      return this.hiddenFilesFileSystem;
-    }
-    if (await this.ephemeralFilesFileSystem.responsible(filePath.toString())) {
-      return this.ephemeralFilesFileSystem;
-    }
     for (const fileSystem of this.subFilesystems) {
       if (await fileSystem.responsible(filePath.toString())) {
         return fileSystem;
@@ -367,42 +344,29 @@ export class CompositeFs {
     // Create a Union of all files from the filesystems
     // NOTE - for the list of filenames only this is enought
     // -> for stats we need to skip files we already got from a previous subFs
-    const fileNames: Set<string> = new Set<string>();
+    let fileNames: Set<string> = new Set<string>();
     for (const fileSystem of [...this.subFilesystems].reverse()) {
-      const subFsdirEntries = await fileSystem.readdir(dirPath, options);
-      for (const fileName of subFsdirEntries) {
-        if (
-          !(await this.ephemeralFilesFileSystem?.responsible(
-            (dirPath == '/' ? '' : dirPath) + '/' + fileName
-          ))
-        ) {
+      if (fileSystem.readDirFiltering) {
+        fileNames = new Set(
+          await fileSystem.readDirFiltering(dirPath, Array.from(fileNames))
+        );
+      } else {
+        const subFsdirEntries = await fileSystem.readdir(dirPath, options);
+        for (const fileName of subFsdirEntries) {
           fileNames.add(fileName);
         }
       }
     }
 
     //
-    try {
-      const ephemeralEntries = await this.ephemeralFilesFileSystem!.readdir(
-        dirPath,
-        options
-      );
 
-      for (const fileName of ephemeralEntries) {
-        fileNames.add(fileName);
-      }
-    } catch (err) {
-      if ((err as unknown as any).code !== 'ENOENT') {
-        throw new Error('error reading ephemeral fs: ' + err);
-      }
-    }
-
-    for (const fileName of fileNames) {
-      const fullPath = (dirPath == '/' ? '' : dirPath) + '/' + fileName;
-      if (await this.hiddenFilesFileSystem!.responsible(fullPath)) {
-        fileNames.delete(fileName);
-      }
-    }
+    // TODO instead of utilizing the normal read dir - pass the files written by previous subFs to allow hiding files to get filtered out
+    // for (const fileName of fileNames) {
+    //   const fullPath = (dirPath == '/' ? '' : dirPath) + '/' + fileName;
+    //   if (await this.hiddenFilesFileSystem!.responsible(fullPath)) {
+    //     fileNames.delete(fileName);
+    //   }
+    // }
     return Array.from(fileNames);
   }
 
@@ -459,24 +423,6 @@ export class CompositeFs {
   }
 
   async rename(oldPath: nodeFs.PathLike, newPath: nodeFs.PathLike) {
-    // Check if hidden filesystem is involved
-    if (this.hiddenFilesFileSystem) {
-      if (
-        await this.hiddenFilesFileSystem.responsible(
-          path.basename(oldPath.toString())
-        )
-      ) {
-        throw new Error('Renaming of hidden Files is not allowed ' + oldPath);
-      }
-      if (
-        await this.hiddenFilesFileSystem.responsible(
-          path.basename(newPath.toString())
-        )
-      ) {
-        throw new Error('Renaming to hidden Files is not allowed ' + newPath);
-      }
-    }
-
     // Get responsible filesystems for both paths
     const oldFs = await this.getResponsibleFs(oldPath);
     const newFs = await this.getResponsibleFs(newPath);
@@ -499,6 +445,9 @@ export class CompositeFs {
       const buffer = Buffer.alloc(stats.size as number);
       await oldFs.read(fh, buffer, 0, stats.size as number, 0);
       await oldFs.close(fh);
+
+      // TODO check if we can unlink the oldPath first (to fail early) before writing to new location
+      // - a file in .legit/commits/ is immutable and can not be unlinked for example
 
       // Write to new location
       await newFs.writeFile(newPath.toString(), buffer, 'utf8');

@@ -104,6 +104,11 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     throw new Error(`mkdir not implemented for: ${this.toStr(path)}`);
   }
 
+  async readDirFiltering?(
+    path: PathLike,
+    entries: IDir[] | string[]
+  ): Promise<string[]>;
+
   readdir(
     path: PathLike,
     options?:

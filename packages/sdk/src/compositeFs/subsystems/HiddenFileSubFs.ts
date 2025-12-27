@@ -89,6 +89,22 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
     throw this.error(path);
   }
 
+  override async readDirFiltering?(
+    path: PathLike,
+    entries: string[]
+  ): Promise<string[]> {
+    // go through all entries, attach the path to them, and check if it matches with the ignore pattern - if so remove them from the array
+    const result: string[] = [];
+    for (const entry of entries) {
+      const fullPath = this.toStr(path) + '/' + entry;
+      const isIgnored = await this.responsible(fullPath);
+      if (!isIgnored) {
+        result.push(entry);
+      }
+    }
+    return result;
+  }
+
   override async readdir(path: PathLike): Promise<any> {
     throw this.error(path);
   }

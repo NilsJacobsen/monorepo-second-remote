@@ -187,21 +187,13 @@ export async function openLegitFs({
     patterns: ephemaralGitConfig ? ['**/.git/config'] : [],
   });
 
-  const rootHiddenFs = new HiddenFileSubFs({
-    name: 'root-hidden',
-    parentFs: gitStorageFs,
-
-    hiddenFiles: [],
-  });
-
   const rootPassThroughFileSystem = new PassThroughToAsyncFsSubFs({
     name: 'root-passthrough',
     parentFs: gitStorageFs,
     passThroughFs: storageFs,
   });
 
-  gitStorageFs.setHiddenFilesSubFs(rootHiddenFs);
-  gitStorageFs.setEphemeralFilesSubFs(rootCopyOnWriteFs);
+  gitStorageFs.addSubFs(rootCopyOnWriteFs);
   gitStorageFs.addSubFs(rootPassThroughFileSystem);
 
   const userSpaceFs = new CompositeFs({
@@ -331,9 +323,9 @@ export async function openLegitFs({
   });
 
   // Add legitFs to compositFs
+  userSpaceFs.addSubFs(gitFsHiddenFs);
+  userSpaceFs.addSubFs(gitFsCopyOnWriteFs);
   userSpaceFs.addSubFs(gitSubFs);
-  userSpaceFs.setHiddenFilesSubFs(gitFsHiddenFs);
-  userSpaceFs.setEphemeralFilesSubFs(gitFsCopyOnWriteFs);
 
   const tokenStore = createGitConfigTokenStore({
     storageFs: gitStorageFs as any,
