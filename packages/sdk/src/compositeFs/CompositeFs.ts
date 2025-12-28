@@ -6,15 +6,11 @@ import { CompositeSubFs } from './CompositeSubFs.js';
 import { CompositeFsDir } from './CompositeFsDir.js';
 import { IStats } from 'memfs/lib/node/types/misc.js';
 import { FsOperationLogger } from './utils/fs-operation-logger.js';
-import { PathRouteDescription, PathRouter } from './PathRouter.js';
+import { PathRouter, LegitRouteFolder } from './PathRouter.js';
+
+import { BaseCompositeSubFs } from './subsystems/BaseCompositeSubFs.js';
 
 type FileSystem = any;
-
-export interface LegitRouteFolder {
-  [key: string]: LegitRouteDescriptor;
-}
-
-type LegitRouteDescriptor = CompositeSubFs | LegitRouteFolder;
 
 /**
  *
@@ -219,20 +215,49 @@ export class CompositeFs {
    *
    * other subFs in order of addition -> passThrough
    * @param filePath
-   * @returns
+   * @returns A contextual SubFS instance with route information bound to it
    */
-  private async getResponsibleFs(filePath: nodeFs.PathLike) {
+  private async getResponsibleFs(
+    filePath: nodeFs.PathLike
+  ): Promise<CompositeSubFs> {
+    const pathStr = filePath.toString();
+
+    // 1. Check filter layers first
     for (const fileSystem of this.filterLayers) {
-      if (await fileSystem.responsible(filePath.toString())) {
+      if (await fileSystem.responsible(pathStr)) {
+        // Filter layers don't have route context, return as-is or create empty context
+        if (fileSystem instanceof BaseCompositeSubFs) {
+          return fileSystem.withContext({
+            fullPath: pathStr,
+            params: {},
+            staticSiblings: {},
+          });
+        }
         return fileSystem;
       }
     }
 
-    const handler = this.router.match(filePath.toString());
+    // 2. Check router for pattern-based routing
+    const match = this.router.match(pathStr);
 
-    handler?.handler.attach(this);
+    if (!match) {
+      throw new Error(`No route match for: ${pathStr}`);
+    }
 
-    return handler!.handler;
+    const fs = match.handler;
+    fs.attach(this);
+
+    // 3. If it's a BaseCompositeSubFs, create a contextual instance
+    if (fs instanceof BaseCompositeSubFs) {
+      return fs.withContext({
+        fullPath: pathStr,
+        params: match.params,
+        staticSiblings: match.staticSiblings,
+      });
+    }
+
+    // 4. For other SubFS types, return as-is
+    return fs;
   }
 
   async access(filePath: string, mode?: number) {
@@ -367,14 +392,17 @@ export class CompositeFs {
       operationArgs: { options },
     });
 
-    const handler = this.router.match(dirPath.toString());
-
-    handler?.handler.attach(this);
-
     let fileNames = new Set<string>();
+    const match = this.router.match(dirPath.toString());
 
-    if (handler?.handler) {
-      fileNames = new Set(await handler.handler.readdir(dirPath, options));
+    if (match?.handler instanceof BaseCompositeSubFs) {
+      const fs = match?.handler.withContext({
+        fullPath: dirPath.toString(),
+        params: match.params,
+        staticSiblings: match.staticSiblings,
+      });
+      fs.attach(this);
+      fileNames = new Set(await fs.readdir(dirPath, options));
     }
 
     // Create a Union of all files from the filesystems
@@ -463,8 +491,15 @@ export class CompositeFs {
     const oldFs = await this.getResponsibleFs(oldPath);
     const newFs = await this.getResponsibleFs(newPath);
 
+    // Check if both paths are in the same filesystem
+    // Use isSameInstance() if available (for BaseCompositeSubFs), otherwise fall back to ===
+    const isSameFs =
+      'isSameInstance' in oldFs && typeof oldFs.isSameInstance === 'function'
+        ? oldFs.isSameInstance(newFs)
+        : oldFs === newFs;
+
     // If both paths are in the same filesystem, use that filesystem's rename
-    if (oldFs === newFs) {
+    if (isSameFs) {
       await this.logOperation?.({
         fsName: oldFs.name,
         path: oldPath.toString(),

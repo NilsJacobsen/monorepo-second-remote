@@ -24,6 +24,7 @@ import * as nodeFs from 'node:fs';
 import CompositFsFileHandle from '../CompositeFsFileHandle.js';
 import { CompositeSubFs, CompositeSubFsDir } from '../CompositeSubFs.js';
 import { CompositeFs } from '../CompositeFs.js';
+import { FsOperationContext } from '../context.js';
 
 export abstract class BaseCompositeSubFs implements CompositeSubFs {
   protected toStr(p: any): string {
@@ -34,16 +35,68 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     return String(p);
   }
 
+  /** Reference to the parent CompositeFs instance - late init */
   protected compositFs!: CompositeFs;
+
+  /** Context for the current filesystem operation */
+  protected context?: FsOperationContext;
+
+  /**
+   * Unique instance ID that persists across contextual instances
+   * This allows us to check if two contextual instances wrap the same base SubFS
+   */
+  readonly instanceId: string;
 
   name: string;
 
   constructor({ name }: { name: string }) {
     this.name = name;
+    // Generate a unique ID for this instance
+    this.instanceId = `${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   attach(compositFs: CompositeFs) {
     this.compositFs = compositFs;
+  }
+
+  /**
+   * Get the context for the current operation
+   * This is set by CompositeFs when routing to this SubFS via withContext()
+   */
+  protected getOperationContext(): FsOperationContext | undefined {
+    return this.context;
+  }
+
+  /**
+   * Create a new instance with context bound to it
+   * This creates a shallow copy where all mutable state (like open file handles)
+   * is shared between the original and the contextual instance, but the context
+   * is unique to this instance.
+   *
+   * Each operation gets its own contextual instance, ensuring that concurrent
+   * operations don't interfere with each other's context.
+   */
+  withContext(context: FsOperationContext): this {
+    // Create a shallow copy that has context pre-set
+    const contextual = Object.create(Object.getPrototypeOf(this));
+    Object.assign(contextual, this);
+    contextual.context = context;
+    // Note: instanceId is copied via Object.assign, so it persists
+    return contextual as this;
+  }
+
+  /**
+   * Check if this SubFS is the same instance as another
+   * This works even for contextual instances created by withContext()
+   * because they share the same instanceId
+   */
+  isSameInstance(other: CompositeSubFs): boolean {
+    // Check if the other instance has an instanceId property
+    if ('instanceId' in other && typeof other.instanceId === 'string') {
+      return this.instanceId === other.instanceId;
+    }
+    // Fallback to reference equality for non-BaseCompositeSubFs instances
+    return this === other;
   }
 
   abstract responsible(filePath: string): Promise<boolean>;
