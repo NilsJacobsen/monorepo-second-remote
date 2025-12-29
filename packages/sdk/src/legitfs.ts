@@ -30,6 +30,7 @@ import {
 import { gitApplyCurrentChangesToVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
 import { gitReferenceBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitReferenceBranchVirtualFile.js';
 import { PassThroughToAsyncFsSubFs } from './compositeFs/subsystems/PassThroughToAsyncFsSubFs.js';
+import { CompositeSubFsAdapter } from './compositeFs/subsystems/CompositeSubFsAdapter.js';
 
 function getGitCache(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -180,7 +181,7 @@ export async function openLegitFs({
     sourceFs: storageFs,
     copyToFs: copyFs,
     copyToRootPath: '/copies',
-    sourceRootPath: gitRoot,
+
     patterns: ephemaralGitConfig ? ['**/.git/config'] : [],
   });
 
@@ -192,6 +193,7 @@ export async function openLegitFs({
   const gitStorageFs = new CompositeFs({
     name: 'root',
     filterLayers: [rootCopyOnWriteFs],
+    rootPath: gitRoot,
     routes: {
       '[[...relativePath]]': rootPassThroughFileSystem,
     },
@@ -319,15 +321,31 @@ export async function openLegitFs({
     sourceFs: gitStorageFs,
     copyToFs: userCopyFs,
     copyToRootPath: '/user-copies',
-    sourceRootPath: gitRoot,
+
     patterns: copyOnWritePatterns,
+  });
+
+  // In legitfs.ts - Configure CompositeFs with adapter per virtual file type
+  const branchFileAdapter = new CompositeSubFsAdapter({
+    name: 'branch-file',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchFileVirtualFile, // Single handler for this adapter
   });
 
   const userSpaceFs = new CompositeFs({
     name: 'git',
+    rootPath: gitRoot,
     filterLayers: [gitFsHiddenFs, gitFsCopyOnWriteFs],
     routes: {
-      '[[...relativePath]]': gitSubFs,
+      '.legit': {
+        branches: {
+          '[branchName]': {
+            '[[...filePath]]': branchFileAdapter,
+          },
+        },
+      },
+      '[[...filePath]]': gitSubFs,
     },
   });
 

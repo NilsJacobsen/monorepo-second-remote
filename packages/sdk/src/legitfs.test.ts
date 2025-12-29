@@ -376,8 +376,6 @@ describe('openLegitFs', () => {
     const legitFolderPath = `${repoPath}/.legit/branches/main`;
     const stats1 = await legitfs.promises.stat(legitFolderPath);
     await new Promise(resolve => setTimeout(resolve, 20));
-    const legitFolderPath2 = `${repoPath}/.legit/branches/main/.legit`;
-    const stats12 = await legitfs.promises.stat(legitFolderPath2);
     const stats2 = await legitfs.promises.stat(legitFolderPath);
 
     expect(stats1.isDirectory()).toBe(true);

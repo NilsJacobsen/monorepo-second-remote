@@ -162,9 +162,7 @@ export class CompositeSubFsAdapter
   ): Promise<CompositFsFileHandle> {
     const isWritable = this.handler.writeFile !== undefined;
     if (!isWritable && (flags.includes('w') || flags.includes('a'))) {
-      throw new Error(
-        `Write operations not allowed for ${this.handler.type}`
-      );
+      throw new Error(`Write operations not allowed for ${this.handler.type}`);
     }
 
     // TODO add flags to handler definition
@@ -860,73 +858,63 @@ export class CompositeSubFsAdapter
     if (!this.handler.rename) {
       throw new Error(`Rename not supported for ${this.handler.type} files`);
     }
-      // open question how do we want to deal with flushing?
-      // a rename leads to a commit independent from open writes!?
+    // open question how do we want to deal with flushing?
+    // a rename leads to a commit independent from open writes!?
 
-      let newExistsInMemory = true;
+    const newExistsInMemory = await this.memFs.promises
+      .access(newPathStr)
+      .then(() => true)
+      .catch(() => false);
+
+    const newExistsInBranch = await this.stat(newPathStr)
+      .then(() => true)
+      .catch(() => false);
+
+    const oldExistsInBranch = await this.stat(oldPathStr)
+      .then(() => true)
+      .catch(() => false);
+
+    const oldExistsInMemory = await this.memFs.promises
+      .access(oldPathStr)
+      .then(() => true)
+      .catch(() => false);
+
+    // id
+
+    // todo check if the source file exists in memory
+    // todo check if the target file exists in memory
+
+    if (oldExistsInMemory) {
+      // Ensure the target directory exists
+      const targetDir = path.dirname(newPathStr);
       try {
-        await this.memFs.promises.access(newPathStr);
-      } catch (e) {
-        newExistsInMemory = false;
+        await this.memFs.promises.access(targetDir);
+      } catch {
+        await this.memFs.promises.mkdir(targetDir, { recursive: true });
       }
+      await this.memFs.promises.rename(oldPath, newPath);
+    }
 
-      let newExistsInBranch = true;
-      try {
-        await this.stat(newPathStr);
-      } catch (e) {
-        newExistsInBranch = false;
-      }
+    const routeParams = this.getRouteParams();
+    const author = await this.getAuthor();
+    await this.handler.rename({
+      cacheFs: this.memFs,
+      filePath: oldPathStr,
+      userSpaceFs: this.compositFs,
+      gitRoot: this.gitRoot,
+      nodeFs: this.storageFs,
+      newPath: newPathStr,
+      pathParams: routeParams,
+      newPathParams: this.newContext?.params || {}, // TODO: Extract new path params
+      author,
+    });
 
-      let oldExistsInBranch = true;
-      try {
-        await this.stat(oldPathStr);
-      } catch (e) {
-        oldExistsInBranch = false;
-      }
-
-      let oldExistsInMemory = true;
-      try {
-        await this.memFs.promises.access(oldPathStr);
-      } catch (e) {
-        oldExistsInMemory = false;
-      }
-
-      // id
-
-      // todo check if the source file exists in memory
-      // todo check if the target file exists in memory
-
-      if (oldExistsInMemory) {
-        // Ensure the target directory exists
-        const targetDir = path.dirname(newPathStr);
-        try {
-          await this.memFs.promises.access(targetDir);
-        } catch {
-          await this.memFs.promises.mkdir(targetDir, { recursive: true });
-        }
-        await this.memFs.promises.rename(oldPath, newPath);
-      }
-
-      const routeParams = this.getRouteParams();
-      const author = await this.getAuthor();
-      await this.handler.rename({
-        cacheFs: this.memFs,
-        filePath: oldPathStr,
-        userSpaceFs: this.compositFs,
-        gitRoot: this.gitRoot,
-        nodeFs: this.storageFs,
-        newPath: newPathStr,
-        pathParams: routeParams,
-        newPathParams: {}, // TODO: Extract new path params
-        author,
-      });
-
-      // } else if (oldParsed.type === "branch-file" && !newParsed.isLegitPath) {
-      // Branch file to regular file - extract from branch
-      // await this.extractBranchFileToRegular(oldPathStr, newPathStr, oldParsed);
-      // } else if (!oldParsed.isLegitPath && newParsed.type === "branch-file") {
-      // Regular file to branch file - add to branch
-      // await this.addRegularFileToBranch(oldPathStr, newPathStr, newParsed);
+    // } else if (oldParsed.type === "branch-file" && !newParsed.isLegitPath) {
+    // Branch file to regular file - extract from branch
+    // await this.extractBranchFileToRegular(oldPathStr, newPathStr, oldParsed);
+    // } else if (!oldParsed.isLegitPath && newParsed.type === "branch-file") {
+    // Regular file to branch file - add to branch
+    // await this.addRegularFileToBranch(oldPathStr, newPathStr, newParsed);
   }
 
   override async fchmod(fh: CompositFsFileHandle, mode: TMode): Promise<void> {

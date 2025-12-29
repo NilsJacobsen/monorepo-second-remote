@@ -39,7 +39,10 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
   protected compositFs!: CompositeFs;
 
   /** Context for the current filesystem operation */
-  protected context?: FsOperationContext;
+  public context?: FsOperationContext;
+
+  // NOTE: set if rename happens in the same fs
+  public newContext?: FsOperationContext;
 
   /**
    * Unique instance ID that persists across contextual instances

@@ -146,7 +146,7 @@ export class CompositeFs {
       subFs.attach(this);
     }
 
-    this.router = new PathRouter(routes);
+    this.router = new PathRouter(routes, this.rootPath);
 
     this.promises = {
       access: this.access.bind(this),
@@ -223,7 +223,7 @@ export class CompositeFs {
    */
   private async getResponsibleFs(
     filePath: nodeFs.PathLike
-  ): Promise<CompositeSubFs> {
+  ): Promise<BaseCompositeSubFs> {
     const pathStr = filePath.toString();
 
     // 1. Check filter layers first
@@ -237,7 +237,9 @@ export class CompositeFs {
             staticSiblings: [],
           });
         }
-        return fileSystem;
+        throw new Error(
+          `Filter layer filesystem ${fileSystem.name} is not a BaseCompositeSubFs`
+        );
       }
     }
 
@@ -248,20 +250,14 @@ export class CompositeFs {
       throw new Error(`No route match for: ${pathStr}`);
     }
 
-    const fs = match.handler;
+    const fs = match.handler!;
     fs.attach(this);
 
-    // 3. If it's a BaseCompositeSubFs, create a contextual instance
-    if (fs instanceof BaseCompositeSubFs) {
-      return fs.withContext({
-        fullPath: pathStr,
-        params: match.params,
-        staticSiblings: match.staticSiblings,
-      });
-    }
-
-    // 4. For other SubFS types, return as-is
-    return fs;
+    return fs.withContext({
+      fullPath: pathStr,
+      params: match.params,
+      staticSiblings: match.staticSiblings,
+    });
   }
 
   async access(filePath: string, mode?: number) {
@@ -510,6 +506,7 @@ export class CompositeFs {
         operation: 'rename',
         operationArgs: { oldPath, newPath },
       });
+      oldFs.newContext = (newFs as BaseCompositeSubFs).context;
       return oldFs.rename(oldPath, newPath);
     }
 

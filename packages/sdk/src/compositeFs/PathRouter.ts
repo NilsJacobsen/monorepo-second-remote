@@ -1,4 +1,5 @@
 import { CompositeSubFs } from './CompositeSubFs.js';
+import { BaseCompositeSubFs } from './subsystems/BaseCompositeSubFs.js';
 
 export type LegitRouteNode = {
   handler?: CompositeSubFs;
@@ -21,7 +22,7 @@ export interface FsOperationContext {
 }
 
 export type MatchResult = {
-  handler: CompositeSubFs;
+  handler: BaseCompositeSubFs;
   staticSiblings: { segment: string; type: 'folder' | 'file' }[];
   params: Record<string, string>;
 };
@@ -40,7 +41,10 @@ export class PathRouter {
     handler: CompositeSubFs;
   }[];
 
-  constructor(public routes: LegitRouteFolder) {
+  constructor(
+    public routes: LegitRouteFolder,
+    private rootPath: string
+  ) {
     // Flatten tree into route patterns
     const flatRoutes: Record<
       string,
@@ -147,13 +151,18 @@ export class PathRouter {
   }
 
   match(path: string): MatchResult | undefined {
-    // Normalize path: remove trailing slash except for root
-    if (path.length > 1 && path.endsWith('/')) {
-      path = path.replace(/\/+$/, '');
+    let relative = path;
+
+    // Remove the root path prefix if present
+    if (relative.startsWith(this.rootPath + '/')) {
+      relative = relative.slice(this.rootPath.length + 1);
+    } else if (relative.startsWith(this.rootPath)) {
+      relative = relative.slice(this.rootPath.length);
     }
+
     for (const { regex, paramNames, handler, staticSiblings } of this
       .compiledRoutes) {
-      const match = path.match(regex);
+      const match = relative.match(regex);
       if (!match) continue;
       const params: Record<string, string> = {};
       for (let i = 0; i < paramNames.length; i++) {
