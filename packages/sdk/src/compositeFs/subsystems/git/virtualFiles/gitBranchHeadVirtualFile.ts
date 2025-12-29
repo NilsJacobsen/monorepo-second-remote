@@ -27,7 +27,6 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
 
-
     let headCommit = await tryResolveRef(
       nodeFs,
       gitRoot,
@@ -122,10 +121,6 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
     pathParams,
     userSpaceFs,
   }) => {
-    console.log('gitBranchHeadVirtualFile writeFile called', {
-      pathParams,
-      content,
-    });
     if (pathParams.branchName === undefined) {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
     }
@@ -156,7 +151,7 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
   rename(args) {
     throw new Error('not implementsd');
   },
-  
+
   mkdir: async function (
     args: VirtualFileArgs & {
       options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null;

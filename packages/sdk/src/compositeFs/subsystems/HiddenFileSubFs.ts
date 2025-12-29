@@ -1,9 +1,7 @@
-import { CompositeSubFs } from '../CompositeSubFs.js';
 import CompositFsFileHandle from '../CompositeFsFileHandle.js';
 import type { PathLike } from 'fs';
 import ignore from 'ignore';
 import { BaseCompositeSubFs } from './BaseCompositeSubFs.js';
-import { CompositeFs } from '../CompositeFs.js';
 import { pathToString } from '../utils/path-helper.js';
 
 /**

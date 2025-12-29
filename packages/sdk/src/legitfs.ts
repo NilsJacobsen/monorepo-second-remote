@@ -9,7 +9,7 @@ import { createFsFromVolume, Volume } from 'memfs';
 import { createSessionManager, LegitUser } from './sync/sessionManager.js';
 import { createGitConfigTokenStore } from './sync/createGitConfigTokenStore.js';
 import { gitBranchFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchFileVirtualFile.js';
-import { gitBranchesListVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
+import { createBranchesListAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
 import { gitBranchHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchHeadVirtualFile.js';
 import { legitVirtualFile } from './compositeFs/subsystems/git/virtualFiles/legitVirtualFile.js';
 import { gitCommitFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCommitFileVirtualFile.js';
@@ -17,15 +17,12 @@ import { gitCommitVirtualFolder } from './compositeFs/subsystems/git/virtualFile
 import { gitBranchOperationVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationVirtualFile.js';
 
 import { gitBranchOperationsVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
-import { getThreadName } from './compositeFs/subsystems/git/virtualFiles/operations/getThreadName.js';
+
 import { gitBranchHistory } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
 import { gitBranchOperationHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
 import { gitCurrentBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
 import { claudeVirtualSessionFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/claudeVirtualSessionFileVirtualFile.js';
-import {
-  createFsOperationFileLogger,
-  FsOperationLogger,
-} from './compositeFs/utils/fs-operation-logger.js';
+import { FsOperationLogger } from './compositeFs/utils/fs-operation-logger.js';
 import { gitApplyCurrentChangesToVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
 import { gitReferenceBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitReferenceBranchVirtualFile.js';
 import { PassThroughToAsyncFsSubFs } from './compositeFs/subsystems/PassThroughToAsyncFsSubFs.js';
@@ -278,11 +275,9 @@ export async function openLegitFs({
   });
 
   // Branch files and folders
-  const branchesListAdapter = new CompositeSubFsAdapter({
-    name: 'branches-list',
+  const branchesListAdapter = createBranchesListAdapter({
     gitStorageFs: gitStorageFs,
     gitRoot: gitRoot,
-    handler: gitBranchesListVirtualFile,
     rootPath: gitRoot,
   });
 
