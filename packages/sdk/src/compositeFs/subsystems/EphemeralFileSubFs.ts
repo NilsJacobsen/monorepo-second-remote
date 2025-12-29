@@ -67,18 +67,28 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
   }
 
   override async responsible(filePath: string): Promise<boolean> {
-    // Use same logic as HiddenFileSubFs for pattern matching
     const normalized = filePath.replace(/\\/g, '/');
-    let relative = normalized.startsWith('./')
-      ? normalized.slice(2)
-      : normalized;
+
+    // If sourceRootPath is provided, strip it from the path before pattern matching
+    let relative = normalized;
+    if (this.compositFs.rootPath) {
+      const rootPath = this.compositFs.rootPath;
+      // Remove the root path prefix if present
+      if (normalized.startsWith(rootPath + '/')) {
+        relative = normalized.slice(rootPath.length + 1);
+      } else if (normalized.startsWith(rootPath)) {
+        relative = normalized.slice(rootPath.length);
+      }
+    }
+
+    // Remove leading ./ or /
+    relative = relative.startsWith('./') ? relative.slice(2) : relative;
     relative = relative.startsWith('/') ? relative.slice(1) : relative;
 
     if (relative === '' || relative === '.') {
       return false;
     }
-    const ignores = this.ig.ignores(relative);
-    return ignores;
+    return this.ig.ignores(relative);
   }
 
   override fileType(): number {

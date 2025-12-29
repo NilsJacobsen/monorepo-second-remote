@@ -22,11 +22,6 @@ describe('CopyOnWriteSubFs', () => {
     // Create empty copy filesystem
     copyToFs = createFsFromVolume(new Volume());
 
-    // Create a mock parent fs
-    parentFs = {
-      parentFs: {} as any,
-    } as CompositeFs;
-
     copyOnWriteFs = new CopyOnWriteSubFs({
       name: 'copy-on-write-subfs',
       sourceFs,
@@ -34,6 +29,10 @@ describe('CopyOnWriteSubFs', () => {
       copyToRootPath: '/copies',
       patterns: ['*.txt', 'data/**', 'specific-file.md'],
     });
+
+    copyOnWriteFs.attach({
+      rootPath: '/',
+    } as CompositeFs);
   });
 
   describe('responsible()', () => {
@@ -61,6 +60,10 @@ describe('CopyOnWriteSubFs', () => {
         patterns: ['*.txt', '!important.txt'],
       });
 
+      cowWithNegation.attach({
+        rootPath: '/copies',
+      } as CompositeFs);
+
       expect(await cowWithNegation.responsible('test.txt')).toBe(true);
       expect(await cowWithNegation.responsible('important.txt')).toBe(false);
     });
@@ -71,9 +74,13 @@ describe('CopyOnWriteSubFs', () => {
         sourceFs,
         copyToFs,
         copyToRootPath: '/copies',
-        sourceRootPath: '/my-project',
+
         patterns: ['node_modules/**', '*.log'],
       });
+
+      cowWithRoot.attach({
+        rootPath: '/my-project',
+      } as CompositeFs);
 
       // With sourceRootPath, patterns are matched relative to that root
       expect(
@@ -106,9 +113,12 @@ describe('CopyOnWriteSubFs', () => {
         sourceFs,
         copyToFs,
         copyToRootPath: '/copies',
-        sourceRootPath: '/repo',
+
         patterns: ['build/**', 'dist/**', '.next/**'],
       });
+      cowWithRoot.attach({
+        rootPath: '/repo',
+      } as CompositeFs);
 
       // Match patterns relative to sourceRootPath
       expect(await cowWithRoot.responsible('/repo/build/index.js')).toBe(true);

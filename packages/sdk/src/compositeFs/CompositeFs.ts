@@ -111,6 +111,7 @@ export class CompositeFs {
   router: PathRouter;
   parentFs: CompositeFs | undefined;
   name: string;
+  rootPath: string;
 
   pathToFileDescriptors: Map<
     /** path */
@@ -130,12 +131,15 @@ export class CompositeFs {
     name,
     filterLayers,
     routes,
+    rootPath,
   }: {
     name: string;
     filterLayers: CompositeSubFs[];
     routes: LegitRouteFolder;
+    rootPath: string;
   }) {
     this.name = name;
+    this.rootPath = rootPath;
 
     for (const subFs of filterLayers) {
       this.filterLayers.push(subFs);
@@ -230,7 +234,7 @@ export class CompositeFs {
           return fileSystem.withContext({
             fullPath: pathStr,
             params: {},
-            staticSiblings: {},
+            staticSiblings: [],
           });
         }
         return fileSystem;
