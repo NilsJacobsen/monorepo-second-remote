@@ -54,8 +54,7 @@ const noAdditionalFiles = {
  * CompositeSubFsAdapter - Adapts a virtual file handler to work as a SubFS
  *
  * This class adapts a single VirtualFileDefinition to work as a CompositeSubFs.
- * It receives routing context (extracted parameters) from CompositeFs via the
- * getOperationContext() method, eliminating the need for internal routing.
+ * It receives routing context (extracted parameters) from CompositeFs, eliminating the need for internal routing.
  *
  * Each virtual file type (branch file, commit file, etc.) gets its own adapter instance.
  */
@@ -137,8 +136,7 @@ export class CompositeSubFsAdapter
    * CompositeFs sets this context when routing to this adapter
    */
   private getRouteParams(): Record<string, string> {
-    const context = this.getOperationContext();
-    return context?.params || {};
+    return this.context?.params || {};
   }
 
   /**
@@ -146,8 +144,7 @@ export class CompositeSubFsAdapter
    * These are static entries that should appear in directory listings
    */
   private getStaticSiblings(): { segment: string; type: 'folder' | 'file' }[] {
-    const context = this.getOperationContext();
-    return context?.staticSiblings || [];
+    return this.context?.staticSiblings || [];
   }
 
   /**
@@ -181,7 +178,7 @@ export class CompositeSubFsAdapter
     const fileFromGit = await this.handler.getFile({
       cacheFs: this.memFs,
       filePath,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: routeParams,
@@ -239,7 +236,7 @@ export class CompositeSubFsAdapter
     const fd = fh.fd;
     const filehandle = new CompositFsFileHandle({
       fs: this,
-      compositeFs: this.compositFs,
+      compositeFs: this.compositeFs,
       subFsFileDescriptor: fd,
       parentFsFileDescriptors: [],
     });
@@ -278,7 +275,7 @@ export class CompositeSubFsAdapter
       await this.handler.mkdir({
         cacheFs: this.memFs,
         filePath: path.toString(),
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: routeParams,
@@ -395,7 +392,7 @@ export class CompositeSubFsAdapter
     const stats = await this.handler.getStats({
       cacheFs: this.memFs,
       filePath: pathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: routeParams,
@@ -486,7 +483,7 @@ export class CompositeSubFsAdapter
     const result = await this.handler.getFile({
       cacheFs: this.memFs,
       filePath: pathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: routeParams,
@@ -581,7 +578,7 @@ export class CompositeSubFsAdapter
       const fileFromGit = await this.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh.path,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: routeParams,
@@ -659,7 +656,7 @@ export class CompositeSubFsAdapter
       const fileFromGit = await this.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh!.path,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: routeParams,
@@ -726,7 +723,7 @@ export class CompositeSubFsAdapter
         await this.handler.writeFile({
           cacheFs: this.memFs,
           filePath: openFh.path,
-          userSpaceFs: this.compositFs,
+          userSpaceFs: this.compositeFs,
           gitRoot: this.gitRoot,
           nodeFs: this.storageFs,
           content: content,
@@ -900,7 +897,7 @@ export class CompositeSubFsAdapter
     await this.handler.rename({
       cacheFs: this.memFs,
       filePath: oldPathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       newPath: newPathStr,
@@ -933,7 +930,7 @@ export class CompositeSubFsAdapter
       await this.handler.unlink({
         cacheFs: this.memFs,
         filePath: pathStr,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: routeParams,
@@ -977,7 +974,7 @@ export class CompositeSubFsAdapter
     await this.handler.rmdir({
       cacheFs: this.memFs,
       filePath: pathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       nodeFs: this.storageFs,
       gitRoot: this.gitRoot,
       pathParams: routeParams,

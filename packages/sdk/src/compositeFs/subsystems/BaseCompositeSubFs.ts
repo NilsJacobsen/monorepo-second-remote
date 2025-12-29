@@ -25,18 +25,11 @@ import CompositFsFileHandle from '../CompositeFsFileHandle.js';
 import { CompositeSubFs, CompositeSubFsDir } from '../CompositeSubFs.js';
 import { CompositeFs } from '../CompositeFs.js';
 import { FsOperationContext } from '../context.js';
+import { pathToString } from '../utils/path-helper.js';
 
 export abstract class BaseCompositeSubFs implements CompositeSubFs {
-  protected toStr(p: any): string {
-    if (typeof p === 'string') return p;
-    if (Buffer.isBuffer(p)) return p.toString();
-    if (p && typeof p === 'object' && 'fd' in p)
-      return `FileHandle(fd=${p.fd})`;
-    return String(p);
-  }
-
   /** Reference to the parent CompositeFs instance - late init */
-  protected compositFs!: CompositeFs;
+  public compositeFs!: CompositeFs;
 
   /** Context for the current filesystem operation */
   public context?: FsOperationContext;
@@ -48,26 +41,18 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
    * Unique instance ID that persists across contextual instances
    * This allows us to check if two contextual instances wrap the same base SubFS
    */
-  readonly instanceId: string;
+  readonly rootInstanceId: string;
 
   name: string;
 
   constructor({ name }: { name: string }) {
     this.name = name;
     // Generate a unique ID for this instance
-    this.instanceId = `${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    this.rootInstanceId = `${name}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 
   attach(compositFs: CompositeFs) {
-    this.compositFs = compositFs;
-  }
-
-  /**
-   * Get the context for the current operation
-   * This is set by CompositeFs when routing to this SubFS via withContext()
-   */
-  protected getOperationContext(): FsOperationContext | undefined {
-    return this.context;
+    this.compositeFs = compositFs;
   }
 
   /**
@@ -88,20 +73,6 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     return contextual as this;
   }
 
-  /**
-   * Check if this SubFS is the same instance as another
-   * This works even for contextual instances created by withContext()
-   * because they share the same instanceId
-   */
-  isSameInstance(other: CompositeSubFs): boolean {
-    // Check if the other instance has an instanceId property
-    if ('instanceId' in other && typeof other.instanceId === 'string') {
-      return this.instanceId === other.instanceId;
-    }
-    // Fallback to reference equality for non-BaseCompositeSubFs instances
-    return this === other;
-  }
-
   abstract responsible(filePath: string): Promise<boolean>;
   abstract fileType(): number;
 
@@ -110,11 +81,11 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     flags: string,
     mode?: number
   ): Promise<CompositFsFileHandle> {
-    throw new Error(`open not implemented for: ${this.toStr(path)}`);
+    throw new Error(`open not implemented for: ${pathToString(path)}`);
   }
 
   async access(path: PathLike, mode?: number): Promise<void> {
-    throw new Error(`access not implemented for: ${this.toStr(path)}`);
+    throw new Error(`access not implemented for: ${pathToString(path)}`);
   }
 
   stat(path: PathLike, opts?: { bigint?: false }): Promise<nodeFs.Stats>;
@@ -128,7 +99,7 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     path: PathLike,
     opts?: { bigint?: boolean }
   ): Promise<nodeFs.Stats | nodeFs.BigIntStats> {
-    throw new Error(`lstat not implemented for: ${this.toStr(path)}`);
+    throw new Error(`lstat not implemented for: ${pathToString(path)}`);
   }
 
   lstat(path: PathLike, opts?: { bigint?: false }): Promise<nodeFs.Stats>;
@@ -142,25 +113,25 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     path: PathLike,
     opts?: { bigint?: boolean }
   ): Promise<nodeFs.Stats | nodeFs.BigIntStats> {
-    throw new Error(`lstat not implemented for: ${this.toStr(path)}`);
+    throw new Error(`lstat not implemented for: ${pathToString(path)}`);
   }
 
   async opendir(
     path: PathLike,
     options?: nodeFs.OpenDirOptions
   ): Promise<CompositeSubFsDir> {
-    throw new Error(`opendir not implemented for: ${this.toStr(path)}`);
+    throw new Error(`opendir not implemented for: ${pathToString(path)}`);
   }
 
   async link(existingPath: PathLike, newPath: PathLike): Promise<void> {
-    throw new Error(`link not implemented for: ${this.toStr(existingPath)}`);
+    throw new Error(`link not implemented for: ${pathToString(existingPath)}`);
   }
 
   async mkdir(
     path: PathLike,
     options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null
   ): Promise<void> {
-    throw new Error(`mkdir not implemented for: ${this.toStr(path)}`);
+    throw new Error(`mkdir not implemented for: ${pathToString(path)}`);
   }
 
   async readDirFiltering?(
@@ -226,23 +197,23 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
       | 'buffer'
       | null
   ): Promise<string[] | Buffer[] | nodeFs.Dirent[]> {
-    throw new Error(`readdir not implemented for: ${this.toStr(path)}`);
+    throw new Error(`readdir not implemented for: ${pathToString(path)}`);
   }
 
   async readlink(path: PathLike, ...args: any[]): Promise<any> {
-    throw new Error(`readlink not implemented for: ${this.toStr(path)}`);
+    throw new Error(`readlink not implemented for: ${pathToString(path)}`);
   }
 
   async unlink(path: PathLike): Promise<void> {
-    throw new Error(`unlink not implemented for: ${this.toStr(path)}`);
+    throw new Error(`unlink not implemented for: ${pathToString(path)}`);
   }
 
   async rename(oldPath: PathLike, newPath: PathLike): Promise<void> {
-    throw new Error(`rename not implemented for: ${this.toStr(oldPath)}`);
+    throw new Error(`rename not implemented for: ${pathToString(oldPath)}`);
   }
 
   async rmdir(path: PathLike, ...args: any[]): Promise<void> {
-    throw new Error(`rmdir not implemented for: ${this.toStr(path)}`);
+    throw new Error(`rmdir not implemented for: ${pathToString(path)}`);
   }
 
   async symlink(
@@ -250,11 +221,11 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     path: PathLike,
     type?: string | null
   ): Promise<void> {
-    throw new Error(`symlink not implemented for: ${this.toStr(path)}`);
+    throw new Error(`symlink not implemented for: ${pathToString(path)}`);
   }
 
   async lookup(filePath: string): Promise<number> {
-    throw new Error(`lookup not implemented for: ${this.toStr(filePath)}`);
+    throw new Error(`lookup not implemented for: ${pathToString(filePath)}`);
   }
 
   resolvePath(fd: number): string {
@@ -262,7 +233,7 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
   }
 
   async close(fh: CompositFsFileHandle): Promise<void> {
-    this.compositFs.close(fh);
+    this.compositeFs.close(fh);
   }
 
   async dataSync(fh: CompositFsFileHandle): Promise<void> {
@@ -350,7 +321,7 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     path: PathLike | IFileHandle,
     options?: IReadFileOptions | string
   ): Promise<TDataOut> {
-    throw new Error(`readFile not implemented for: ${this.toStr(path)}`);
+    throw new Error(`readFile not implemented for: ${path}`);
   }
 
   async writeFile(
@@ -358,6 +329,6 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
     data: TData,
     options: IWriteFileOptions | string
   ): Promise<void> {
-    throw new Error(`writeFile not implemented for: ${this.toStr(path)}`);
+    throw new Error(`writeFile not implemented for: ${path}`);
   }
 }

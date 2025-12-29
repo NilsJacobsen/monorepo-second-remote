@@ -214,7 +214,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const fileFromGit = await parsed.handler.getFile({
       cacheFs: this.memFs,
       filePath,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
@@ -272,7 +272,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const fd = fh.fd;
     const filehandle = new CompositFsFileHandle({
       fs: this,
-      compositeFs: this.compositFs,
+      compositeFs: this.compositeFs,
       subFsFileDescriptor: fd,
       parentFsFileDescriptors: [],
     });
@@ -311,7 +311,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       await branchFileVf?.handler.mkdir({
         cacheFs: this.memFs,
         filePath: path.toString(),
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: branchFileVf.params,
@@ -433,7 +433,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const stats = await parsed.handler.getStats({
       cacheFs: this.memFs,
       filePath: pathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
@@ -534,7 +534,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
     const result = await parsed?.handler.getFile({
       cacheFs: this.memFs,
       filePath: pathStr,
-      userSpaceFs: this.compositFs,
+      userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
       nodeFs: this.storageFs,
       pathParams: parsed.params,
@@ -631,7 +631,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh.path,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed?.params,
@@ -709,7 +709,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const fileFromGit = await parsed!.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh!.path,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         pathParams: parsed!.params,
@@ -776,7 +776,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         await pathHandler.handler.writeFile({
           cacheFs: this.memFs,
           filePath: openFh.path,
-          userSpaceFs: this.compositFs,
+          userSpaceFs: this.compositeFs,
           gitRoot: this.gitRoot,
           nodeFs: this.storageFs,
           content: content,
@@ -964,7 +964,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       const result = await branchFileVf.handler.rename({
         cacheFs: this.memFs,
         filePath: oldPathStr,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
         nodeFs: this.storageFs,
         newPath: newPathStr,
@@ -1001,7 +1001,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
         await parsed.handler.unlink({
           cacheFs: this.memFs,
           filePath: pathStr,
-          userSpaceFs: this.compositFs,
+          userSpaceFs: this.compositeFs,
           nodeFs: this.storageFs,
           gitRoot: this.gitRoot,
           pathParams: parsed.params,
@@ -1047,7 +1047,7 @@ export class GitSubFs extends BaseCompositeSubFs implements CompositeSubFs {
       await parsed.handler.rmdir({
         cacheFs: this.memFs,
         filePath: pathStr,
-        userSpaceFs: this.compositFs,
+        userSpaceFs: this.compositeFs,
         nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
         pathParams: parsed.params,

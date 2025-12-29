@@ -22,7 +22,7 @@ export interface FsOperationContext {
 }
 
 export type MatchResult = {
-  handler: BaseCompositeSubFs;
+  handler: CompositeSubFs;
   staticSiblings: { segment: string; type: 'folder' | 'file' }[];
   params: Record<string, string>;
 };

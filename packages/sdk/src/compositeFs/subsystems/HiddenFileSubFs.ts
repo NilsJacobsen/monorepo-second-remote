@@ -4,6 +4,7 @@ import type { PathLike } from 'fs';
 import ignore from 'ignore';
 import { BaseCompositeSubFs } from './BaseCompositeSubFs.js';
 import { CompositeFs } from '../CompositeFs.js';
+import { pathToString } from '../utils/path-helper.js';
 
 /**
  * FS utilized to hide files, it is responsible for files found in hiddenFiles
@@ -34,8 +35,8 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
 
     // If sourceRootPath is provided, strip it from the path before pattern matching
     let relative = normalized;
-    if (this.compositFs.rootPath) {
-      const rootPath = this.compositFs.rootPath;
+    if (this.compositeFs.rootPath) {
+      const rootPath = this.compositeFs.rootPath;
       // Remove the root path prefix if present
       if (normalized.startsWith(rootPath + '/')) {
         relative = normalized.slice(rootPath.length + 1);
@@ -60,7 +61,7 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
 
   private error(path: any): Error {
     return new Error(
-      `Access to hidden file is not allowed: ${this.toStr(path)}`
+      `Access to hidden file is not allowed: ${pathToString(path)}`
     );
   }
 
@@ -104,7 +105,9 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
     const result: string[] = [];
     for (const entry of entries) {
       const fullPath =
-        this.toStr(path) !== '/' ? this.toStr(path) + '/' + entry : '/' + entry;
+        pathToString(path) !== '/'
+          ? pathToString(path) + '/' + entry
+          : '/' + entry;
       const isIgnored = await this.responsible(fullPath);
       if (!isIgnored) {
         result.push(entry);

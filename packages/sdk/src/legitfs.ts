@@ -4,7 +4,6 @@ import git from 'isomorphic-git';
 
 import { CompositeFs } from './compositeFs/CompositeFs.js';
 import { CopyOnWriteSubFs } from './compositeFs/subsystems/CopyOnWriteSubFs.js';
-import { GitSubFs } from './compositeFs/subsystems/git/GitSubFs.js';
 import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
 import { createSessionManager, LegitUser } from './sync/sessionManager.js';
@@ -200,79 +199,115 @@ export async function openLegitFs({
   });
 
   /**
-   * . -> folder handler
-   * 'name' -> file &| folder handler
-   *
+   * Create adapters for each virtual file type
+   * Each adapter wraps a single handler and receives route context from CompositeFs
    */
-  const routerConfig = {
-    '.legit': {
-      '.': legitVirtualFile,
-      operation: gitBranchOperationVirtualFile,
-      head: gitBranchHeadVirtualFile,
-      operationHead: gitBranchOperationHeadVirtualFile,
-      operationHistory: gitBranchOperationsVirtualFile,
-      history: gitBranchHistory,
-      currentBranch: gitCurrentBranchVirtualFile,
-      'reference-branch': gitReferenceBranchVirtualFile,
-      'apply-changes': gitApplyCurrentChangesToVirtualFile,
-      branches: {
-        '.': gitBranchesListVirtualFile,
-        '[branchName]': {
-          // branch names could include / so this is not a good delimiter here
-          '.legit': {
-            '.': legitVirtualFile,
-            operation: gitBranchOperationVirtualFile,
-            head: gitBranchHeadVirtualFile,
-            operationHead: gitBranchOperationHeadVirtualFile,
-            operationHistory: gitBranchOperationsVirtualFile,
-            history: gitBranchHistory,
-            threadName: getThreadName,
-          },
-          '[[...filePath]]': gitBranchFileVirtualFile,
-        },
-      },
-      commits: {
-        '.': gitCommitVirtualFolder,
-        '[sha_1_1_2]': {
-          '.': gitCommitVirtualFolder,
-          '[sha1_3__40]': {
-            '[[...filePath]]': gitCommitFileVirtualFile,
-          },
-        },
-      },
-      // TODO add a compare setup
-      // compare: {
-      //   '[[aWithB]]': {
-      //     '.legit': {
-      //       'changelist': getChangeList,
-      //     }, // gitCompareVirtualFile,
-      //     '[...filePath]': gitCompareVirtualFile,
-      //   }
-      // }
-    },
-    '.claude': {
-      '[[...filePath]]': claudeVirtualSessionFileVirtualFile,
-    },
-    '[[...filePath]]': gitBranchFileVirtualFile,
-  };
 
-  if (!claudeHandler && routerConfig['.claude']) {
-    // @ts-ignore
-    // NOTE the order of the config currently matters :-/
-    delete routerConfig['.claude'];
-  }
-
-  const gitSubFs = new GitSubFs({
-    name: 'git-subfs',
-    gitRoot: gitRoot,
+  // .legit root folder files
+  const legitVirtualFileAdapter = new CompositeSubFsAdapter({
+    name: 'legit-virtual-file',
     gitStorageFs: gitStorageFs,
-    routerConfig,
+    gitRoot: gitRoot,
+    handler: legitVirtualFile,
+  });
+
+  const operationAdapter = new CompositeSubFsAdapter({
+    name: 'operation',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchOperationVirtualFile,
+  });
+
+  const headAdapter = new CompositeSubFsAdapter({
+    name: 'head',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchHeadVirtualFile,
+  });
+
+  const operationHeadAdapter = new CompositeSubFsAdapter({
+    name: 'operation-head',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchOperationHeadVirtualFile,
+  });
+
+  const operationHistoryAdapter = new CompositeSubFsAdapter({
+    name: 'operation-history',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchOperationsVirtualFile,
+  });
+
+  const historyAdapter = new CompositeSubFsAdapter({
+    name: 'history',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchHistory,
+  });
+
+  const currentBranchAdapter = new CompositeSubFsAdapter({
+    name: 'current-branch',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitCurrentBranchVirtualFile,
+  });
+
+  const referenceBranchAdapter = new CompositeSubFsAdapter({
+    name: 'reference-branch',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitReferenceBranchVirtualFile,
+  });
+
+  const applyChangesAdapter = new CompositeSubFsAdapter({
+    name: 'apply-changes',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitApplyCurrentChangesToVirtualFile,
+  });
+
+  // Branch files and folders
+  const branchesListAdapter = new CompositeSubFsAdapter({
+    name: 'branches-list',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchesListVirtualFile,
+  });
+
+  const branchFileAdapter = new CompositeSubFsAdapter({
+    name: 'branch-file',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitBranchFileVirtualFile,
+  });
+
+  // Commit files and folders
+  const commitFolderAdapter = new CompositeSubFsAdapter({
+    name: 'commit-folder',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitCommitVirtualFolder,
+  });
+
+  const commitFileAdapter = new CompositeSubFsAdapter({
+    name: 'commit-file',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: gitCommitFileVirtualFile,
+  });
+
+  // Claude session files
+  const claudeSessionAdapter = new CompositeSubFsAdapter({
+    name: 'claude-session',
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    handler: claudeVirtualSessionFileVirtualFile,
   });
 
   const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
   const gitFsHiddenFs = new HiddenFileSubFs({
     name: 'git-hidden-subfs',
-
     hiddenFiles,
   });
 
@@ -325,29 +360,58 @@ export async function openLegitFs({
     patterns: copyOnWritePatterns,
   });
 
-  // In legitfs.ts - Configure CompositeFs with adapter per virtual file type
-  const branchFileAdapter = new CompositeSubFsAdapter({
-    name: 'branch-file',
-    gitStorageFs: gitStorageFs,
-    gitRoot: gitRoot,
-    handler: gitBranchFileVirtualFile, // Single handler for this adapter
-  });
-
   const userSpaceFs = new CompositeFs({
     name: 'git',
     rootPath: gitRoot,
     filterLayers: [gitFsHiddenFs, gitFsCopyOnWriteFs],
     routes: {
       '.legit': {
+        '.': legitVirtualFileAdapter,
+        operation: operationAdapter,
+        head: headAdapter,
+        operationHead: operationHeadAdapter,
+        operationHistory: operationHistoryAdapter,
+        history: historyAdapter,
+        currentBranch: currentBranchAdapter,
+        'reference-branch': referenceBranchAdapter,
+        'apply-changes': applyChangesAdapter,
         branches: {
+          '.': branchesListAdapter,
           '[branchName]': {
+            // branch names could include / so this is not a good delimiter here
+            '.legit': {
+              '.': legitVirtualFileAdapter,
+              operation: operationAdapter,
+              head: headAdapter,
+              operationHead: operationHeadAdapter,
+              operationHistory: operationHistoryAdapter,
+              history: historyAdapter,
+            },
             '[[...filePath]]': branchFileAdapter,
           },
         },
+        commits: {
+          '.': commitFolderAdapter,
+          '[sha_1_1_2]': {
+            '.': commitFolderAdapter,
+            '[sha1_3__40]': {
+              '[[...filePath]]': commitFileAdapter,
+            },
+          },
+        },
       },
-      '[[...filePath]]': gitSubFs,
+      '.claude': {
+        '[[...filePath]]': claudeSessionAdapter,
+      },
+      '[[...filePath]]': branchFileAdapter,
     },
   });
+
+  // Remove claude routes if handler is not enabled
+  // if (!claudeHandler) {
+  //   // @ts-ignore - Remove .claude route
+  //   delete (userSpaceFs as any).routes['.claude'];
+  // }
 
   const tokenStore = createGitConfigTokenStore({
     storageFs: gitStorageFs as any,

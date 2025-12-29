@@ -23,6 +23,8 @@ import * as fsDisk from 'node:fs';
 import CompositFsFileHandle from './CompositeFsFileHandle.js';
 import { MakeDirectoryOptions, Mode } from 'node:fs';
 import { CompositeFs } from './CompositeFs.js';
+import { FsOperationContext } from './context.js';
+import { BaseCompositeSubFs } from './subsystems/BaseCompositeSubFs.js';
 
 export type FileHandleDelegate = {
   name: string;
@@ -96,6 +98,14 @@ export type CompositeSubFs = Pick<
 > & {
   name: string;
 
+  context?: FsOperationContext;
+
+  newContext?: FsOperationContext;
+
+  readonly rootInstanceId: string;
+  compositeFs: CompositeFs;
+
+  withContext(context: FsOperationContext): BaseCompositeSubFs;
   attach(compositFs: CompositeFs): void;
 
   readDirFiltering?(
@@ -104,7 +114,7 @@ export type CompositeSubFs = Pick<
   ): Promise<string[]>;
 
   readFile(
-    path: fsDisk.PathLike | IFileHandle,
+    path: fsDisk.PathLike,
     options?: IReadFileOptions | string
   ): Promise<TDataOut>;
 

@@ -491,15 +491,8 @@ export class CompositeFs {
     const oldFs = await this.getResponsibleFs(oldPath);
     const newFs = await this.getResponsibleFs(newPath);
 
-    // Check if both paths are in the same filesystem
-    // Use isSameInstance() if available (for BaseCompositeSubFs), otherwise fall back to ===
-    const isSameFs =
-      'isSameInstance' in oldFs && typeof oldFs.isSameInstance === 'function'
-        ? oldFs.isSameInstance(newFs)
-        : oldFs === newFs;
-
     // If both paths are in the same filesystem, use that filesystem's rename
-    if (isSameFs) {
+    if (oldFs.rootInstanceId === newFs.rootInstanceId) {
       await this.logOperation?.({
         fsName: oldFs.name,
         path: oldPath.toString(),

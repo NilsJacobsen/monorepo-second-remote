@@ -79,6 +79,7 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
       birthtime: new Date(commitTimeMs),
     } as any;
   },
+
   getFile: async ({ gitRoot, nodeFs, pathParams, userSpaceFs }) => {
     if (pathParams.branchName === undefined) {
       pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
@@ -155,6 +156,7 @@ export const gitBranchHeadVirtualFile: VirtualFileDefinition = {
   rename(args) {
     throw new Error('not implementsd');
   },
+  
   mkdir: async function (
     args: VirtualFileArgs & {
       options?: nodeFs.MakeDirectoryOptions | nodeFs.Mode | null;

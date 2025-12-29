@@ -27,6 +27,7 @@ import type {
   IFileHandle,
 } from '../../types/fs-types.js';
 import { CompositeSubFs } from '../CompositeSubFs.js';
+import { pathToString } from '../utils/path-helper.js';
 
 /**
  * FS utilized to provide pass-through access to the underlying filesystem
@@ -79,7 +80,7 @@ export class PassThroughToAsyncFsSubFs
 
     const filehandle = new CompositFsFileHandle({
       fs: this,
-      compositeFs: this.compositFs,
+      compositeFs: this.compositeFs,
       subFsFileDescriptor: fh.fd,
       parentFsFileDescriptors: [],
     });
@@ -109,7 +110,7 @@ export class PassThroughToAsyncFsSubFs
     options?: nodeFs.OpenDirOptions
   ): Promise<CompositeSubFsDir> {
     const dir = await this.targetFs.promises.opendir(folderPath, options);
-    return new CompositeFsDir(this.compositFs, folderPath.toString());
+    return new CompositeFsDir(this.compositeFs, folderPath.toString());
   }
 
   override async link(
@@ -160,7 +161,7 @@ export class PassThroughToAsyncFsSubFs
 
   override async lookup(filePath: string): Promise<number> {
     // No direct equivalent in fs.promises, so throw error or implement as needed
-    throw new Error(`lookup is not implemented for: ${this.toStr(filePath)}`);
+    throw new Error(`lookup is not implemented for: ${pathToString(filePath)}`);
   }
 
   override async close(fh: CompositFsFileHandle): Promise<void> {

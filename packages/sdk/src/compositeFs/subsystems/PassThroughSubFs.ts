@@ -23,6 +23,7 @@ import type {
 } from '../../types/fs-types.js';
 import { CompositeFs } from '../CompositeFs.js';
 import { CompositeSubFsDir } from '../CompositeSubFs.js';
+import { pathToString } from '../utils/path-helper.js';
 
 /**
  * FS utilized to provide pass-through access to the underlying filesystem
@@ -38,12 +39,12 @@ export class PassThroughSubFs extends BaseCompositeSubFs {
       name,
     });
 
-    this.compositFs = parentFs;
+    this.compositeFs = parentFs;
 
-    if (this.compositFs.parentFs === undefined) {
+    if (this.compositeFs.parentFs === undefined) {
       throw new Error('PassThroughSubFs not allowed in root fs');
     }
-    this.targetFs = this.compositFs.parentFs;
+    this.targetFs = this.compositeFs.parentFs;
   }
 
   override async responsible(filePath: string): Promise<boolean> {
@@ -71,7 +72,7 @@ export class PassThroughSubFs extends BaseCompositeSubFs {
 
     const filehandle = new CompositFsFileHandle({
       fs: this,
-      compositeFs: this.compositFs,
+      compositeFs: this.compositeFs,
       subFsFileDescriptor: fh.fd,
       parentFsFileDescriptors: [fh.fd],
     });
@@ -182,7 +183,7 @@ export class PassThroughSubFs extends BaseCompositeSubFs {
 
   override async lookup(filePath: string): Promise<number> {
     // No direct equivalent in fs.promises, so throw error or implement as needed
-    throw new Error(`lookup is not implemented for: ${this.toStr(filePath)}`);
+    throw new Error(`lookup is not implemented for: ${pathToString(filePath)}`);
   }
 
   override async close(fh: CompositFsFileHandle): Promise<void> {
