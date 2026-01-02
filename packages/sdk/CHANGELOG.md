@@ -1,5 +1,13 @@
 # @legit-sdk/core
 
+## 0.4.1
+
+### Patch Changes
+
+- Update license
+- Updated dependencies
+  - @legit-sdk/isomorphic-git@1.34.2
+
 ## 0.4.0
 
 ### Minor Changes

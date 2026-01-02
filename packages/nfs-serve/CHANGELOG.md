@@ -1,5 +1,11 @@
 # @legit/nfs-serve
 
+## 0.2.2
+
+### Patch Changes
+
+- Update license
+
 ## 0.2.1
 
 ### Patch Changes
