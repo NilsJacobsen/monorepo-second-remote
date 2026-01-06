@@ -1,5 +1,11 @@
 # @legit-sdk/core
 
+## 0.4.5
+
+### Patch Changes
+
+- This pull request introduces several enhancements and refactorings to the composite filesystem (CompositeFs) architecture, focusing on improving modularity, context-awareness, and extensibility for sub-filesystems (SubFS). The most significant changes include the introduction of operation context propagation, new interfaces for filtering directory entries, and a major refactor of SubFS base classes and adapters. Additionally, it adds configuration and setup for a new CLI tool example and makes some minor cleanup changes.
+
 ## 0.4.4
 
 ### Patch Changes
