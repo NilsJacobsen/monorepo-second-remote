@@ -98,7 +98,7 @@ function startNfsServerWorker(servePoint, port, logFile) {
   // console.log(`\nStarting NFS server worker...`);
   // console.log(`Serve point: ${servePoint}`);
   // console.log(`Initial port: ${port}`);
-  // console.log(`Log file: ${logFile}`);
+  console.log(`Log file: ${logFile}`);
 
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
@@ -114,6 +114,7 @@ function startNfsServerWorker(servePoint, port, logFile) {
   };
 
   const workerScript = path.join(__dirname, 'nfs-server-worker.js');
+
   const child = spawn(
     process.execPath,
     ['--inspect', workerScript, servePoint, port.toString()],

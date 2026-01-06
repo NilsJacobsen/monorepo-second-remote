@@ -230,7 +230,7 @@ export class CompositeFs {
     for (const fileSystem of this.filterLayers) {
       if (await fileSystem.responsible(pathStr)) {
         // Filter layers don't have route context, return as-is or create empty context
-        if (fileSystem instanceof BaseCompositeSubFs) {
+        if (fileSystem.withContext !== undefined) {
           return fileSystem.withContext({
             fullPath: pathStr,
             params: {},

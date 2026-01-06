@@ -25,6 +25,16 @@ if (!fs.existsSync(SERVE_POINT)) {
   fs.mkdirSync(SERVE_POINT, { recursive: true });
 }
 
+const adapterConfig = {
+  gitStorageFs: null, // NOTE the File adapter usually gives access to the underlying storage fs - not needed here
+  gitRoot: SERVE_POINT,
+  rootPath: SERVE_POINT,
+};
+
+// Claude session files
+const claudeSessionAdapter =
+  createClaudeVirtualSessionFileAdapter(adapterConfig);
+
 try {
   const legitFs = await openLegitFs({
     storageFs: fs,
@@ -33,6 +43,7 @@ try {
     publicKey: undefined,
     claudeHandler: true,
     ephemaralGitConfig: true,
+    additionalFilterLayers: [claudeSessionAdapter],
   });
 
   const fhM = createFileHandleManager(

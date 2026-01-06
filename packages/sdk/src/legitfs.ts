@@ -21,11 +21,12 @@ import { createBranchOperationsAdapter } from './compositeFs/subsystems/git/virt
 import { createBranchHistoryAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
 import { createBranchOperationHeadAdapter } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
 import { createCurrentBranchAdapter } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
-import { createClaudeVirtualSessionFileAdapter } from './compositeFs/subsystems/git/virtualFiles/claudeVirtualSessionFileVirtualFile.js';
+
 import { FsOperationLogger } from './compositeFs/utils/fs-operation-logger.js';
 import { createApplyChangesAdapter } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
 import { createReferenceBranchAdapter } from './compositeFs/subsystems/git/virtualFiles/gitReferenceBranchVirtualFile.js';
 import { PassThroughToAsyncFsSubFs } from './compositeFs/subsystems/PassThroughToAsyncFsSubFs.js';
+import { CompositeSubFs } from './compositeFs/CompositeSubFs.js';
 
 function getGitCache(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -70,8 +71,8 @@ export async function openLegitFs({
   },
   serverUrl = 'https://sync.legitcontrol.com',
   publicKey,
-  claudeHandler,
   ephemaralGitConfig = false,
+  additionalFilterLayers,
 }: {
   storageFs: typeof nodeFs;
   gitRoot: string;
@@ -80,8 +81,8 @@ export async function openLegitFs({
   initialAuthor?: LegitUser;
   serverUrl?: string;
   publicKey?: string;
-  claudeHandler?: boolean;
   ephemaralGitConfig?: boolean;
+  additionalFilterLayers?: CompositeSubFs[];
 }) {
   let repoExists = await storageFs.promises
     .readdir(gitRoot + '/.git')
@@ -234,9 +235,6 @@ export async function openLegitFs({
 
   const commitFileAdapter = createCommitFileAdapter(adapterConfig);
 
-  // Claude session files
-  const claudeSessionAdapter =
-    createClaudeVirtualSessionFileAdapter(adapterConfig);
 
   const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
   const gitFsHiddenFs = new HiddenFileSubFs({
@@ -297,7 +295,11 @@ export async function openLegitFs({
   const userSpaceFs = new CompositeFs({
     name: 'git',
     rootPath: gitRoot,
-    filterLayers: [gitFsHiddenFs, gitFsCopyOnWriteFs, claudeSessionAdapter],
+    filterLayers: [
+      gitFsHiddenFs,
+      gitFsCopyOnWriteFs,
+      ...(additionalFilterLayers || []),
+    ],
     routes: {
       '.legit': {
         '.': legitVirtualFileAdapter,
@@ -337,12 +339,6 @@ export async function openLegitFs({
       '[[...filePath]]': branchFileAdapter,
     },
   });
-
-  // Remove claude routes if handler is not enabled
-  // if (!claudeHandler) {
-  //   // @ts-ignore - Remove .claude route
-  //   delete (userSpaceFs as any).routes['.claude'];
-  // }
 
   const tokenStore = createGitConfigTokenStore({
     storageFs: gitStorageFs as any,

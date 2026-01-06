@@ -84,7 +84,7 @@ export class CompositeSubFsAdapter
    */
   public handler: VirtualFileDefinition;
 
-  private async getAuthor(): Promise<{
+  public async getAuthor(): Promise<{
     name: string;
     email: string;
     date: number;
