@@ -463,5 +463,9 @@ export function createClaudeVirtualSessionFileAdapter({
     },
   });
 
+  adapter.responsible = async (filePath: string) => {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    return normalizedPath.startsWith('/.claude/');
+  }
   return adapter;
 }

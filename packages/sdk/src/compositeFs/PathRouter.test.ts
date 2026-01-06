@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PathRouter } from './PathRouterRework.js';
+import { PathRouter } from './PathRouter.js';
 import { BaseCompositeSubFs } from './subsystems/BaseCompositeSubFs.js';
 
 // Mock SubFS class for testing
@@ -469,9 +469,15 @@ describe('PathRouter', () => {
               '.': new MockSubFs('.legit/branches', 'folder'),
               '[branchName]': {
                 '[[...filePath]]': {
-                  '.': new MockSubFs('.legit/branches/[branchName]/[[...filePath]]/.', 'folder'),
+                  '.': new MockSubFs(
+                    '.legit/branches/[branchName]/[[...filePath]]/.',
+                    'folder'
+                  ),
                   '.legit': {
-                    '.': new MockSubFs('.legit/branches/[branchName]/[[...filePath]]/.legit/.', 'folder'),
+                    '.': new MockSubFs(
+                      '.legit/branches/[branchName]/[[...filePath]]/.legit/.',
+                      'folder'
+                    ),
                     head: new MockSubFs(
                       '.legit/branches/[branchName]/[[...filePath]]/.legit/head',
                       'file'
@@ -490,9 +496,7 @@ describe('PathRouter', () => {
         '.legit/branches/[branchName]/[[...filePath]]/.legit/head'
       );
       // The .legit folder under a branch path should have 'head' as a static sibling
-      expect(result?.staticSiblings).toEqual([
-        
-      ]);
+      expect(result?.staticSiblings).toEqual([]);
     });
   });
 });

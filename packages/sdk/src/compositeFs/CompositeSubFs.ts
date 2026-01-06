@@ -84,6 +84,8 @@ export type FileHandleDelegate = {
  */
 export { CompositeSubFsDir };
 
+export type FsType = 'folder' | 'file' | 'fs';
+
 export type CompositeSubFs = Pick<
   typeof fsDisk.promises,
   | 'access'
@@ -97,6 +99,14 @@ export type CompositeSubFs = Pick<
   | 'symlink'
 > & {
   name: string;
+
+  /**
+   * Explicit declaration of the filesystem type.
+   * - 'folder': This SubFS only handles directories
+   * - 'file': This SubFS only handles files
+   * - 'fs': This SubFS handles both files and folders (default)
+   */
+  fsType: FsType;
 
   context?: FsOperationContext;
 

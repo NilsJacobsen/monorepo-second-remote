@@ -281,9 +281,9 @@ describe('openLegitFs', () => {
     const folderContents = await secondLegitfs.promises.readdir(folderPath);
     expect(folderContents, 'Keep file should exists').toContain('.keep');
 
-    const folderContentsWithKeep = await legitfs.promises.readdir(folderPath);
+    const folderContentsWithoutKeep = await legitfs.promises.readdir(folderPath);
     expect(
-      folderContentsWithKeep,
+      folderContentsWithoutKeep,
       'The created .keep file should not be visible from legitFs'
     ).toHaveLength(0);
 

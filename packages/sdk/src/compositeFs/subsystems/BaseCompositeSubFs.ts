@@ -22,7 +22,11 @@ import type {
 } from '../../types/fs-types.js';
 import * as nodeFs from 'node:fs';
 import CompositFsFileHandle from '../CompositeFsFileHandle.js';
-import { CompositeSubFs, CompositeSubFsDir } from '../CompositeSubFs.js';
+import {
+  CompositeSubFs,
+  CompositeSubFsDir,
+  FsType,
+} from '../CompositeSubFs.js';
 import { CompositeFs } from '../CompositeFs.js';
 import { FsOperationContext } from '../context.js';
 import { pathToString } from '../utils/path-helper.js';
@@ -36,6 +40,8 @@ export abstract class BaseCompositeSubFs implements CompositeSubFs {
 
   // NOTE: set if rename happens in the same fs
   public newContext?: FsOperationContext;
+
+  public fsType: FsType = 'fs';
 
   /**
    * Unique instance ID that persists across contextual instances

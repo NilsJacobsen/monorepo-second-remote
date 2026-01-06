@@ -297,7 +297,7 @@ export async function openLegitFs({
   const userSpaceFs = new CompositeFs({
     name: 'git',
     rootPath: gitRoot,
-    filterLayers: [gitFsHiddenFs, gitFsCopyOnWriteFs],
+    filterLayers: [gitFsHiddenFs, gitFsCopyOnWriteFs, claudeSessionAdapter],
     routes: {
       '.legit': {
         '.': legitVirtualFileAdapter,
@@ -333,9 +333,6 @@ export async function openLegitFs({
             },
           },
         },
-      },
-      '.claude': {
-        '[[...filePath]]': claudeSessionAdapter,
       },
       '[[...filePath]]': branchFileAdapter,
     },
