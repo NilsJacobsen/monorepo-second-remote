@@ -24,28 +24,34 @@ export class CompositeFsDir {
     if (this.initialized) return;
 
     // Collect all entries from all sub-filesystems
-    const fileNames: Set<string> = new Set<string>();
+    let fileNames: Set<string> = new Set<string>();
 
     // Iterate through filesystems in reverse order (same as readdir)
-    for (const fileSystem of [...this.compositFs.subFilesystems].reverse()) {
-      const subFsDirEntries = await fileSystem.readdir(this.dirPath);
-      for (const fileName of subFsDirEntries) {
-        fileNames.add(fileName);
+    for (const fileSystem of [...this.compositFs.filterLayers].reverse()) {
+      if (fileSystem.readDirFiltering) {
+        fileNames = new Set(
+          await fileSystem.readDirFiltering(this.dirPath, Array.from(fileNames))
+        );
+      } else {
+        const subFsDirEntries = await fileSystem.readdir(this.dirPath);
+        for (const fileName of subFsDirEntries) {
+          fileNames.add(fileName);
+        }
       }
     }
 
-    // Filter out hidden files
-    for (const fileName of Array.from(fileNames)) {
-      const fullPath = this.dirPath + '/' + fileName;
-      if (
-        !(await this.compositFs.hiddenFilesFileSystem?.responsible(fullPath))
-      ) {
-        this.entries.push({
-          name: fileName,
-          path: fullPath,
-        });
-      }
-    }
+    // TODO instead of utilizing the normal read dir - pass the files written by previous subFs to allow hiding files to get filtered out
+    // for (const fileName of Array.from(fileNames)) {
+    //   const fullPath = this.dirPath + '/' + fileName;
+    //   if (
+    //     !(await this.compositFs.hiddenFilesFileSystem?.responsible(fullPath))
+    //   ) {
+    //     this.entries.push({
+    //       name: fileName,
+    //       path: fullPath,
+    //     });
+    //   }
+    // }
 
     this.initialized = true;
   }

@@ -22,6 +22,9 @@ import type {
 import * as fsDisk from 'node:fs';
 import CompositFsFileHandle from './CompositeFsFileHandle.js';
 import { MakeDirectoryOptions, Mode } from 'node:fs';
+import { CompositeFs } from './CompositeFs.js';
+import { FsOperationContext } from './context.js';
+import { BaseCompositeSubFs } from './subsystems/BaseCompositeSubFs.js';
 
 export type FileHandleDelegate = {
   name: string;
@@ -81,6 +84,8 @@ export type FileHandleDelegate = {
  */
 export { CompositeSubFsDir };
 
+export type FsType = 'folder' | 'file' | 'fs';
+
 export type CompositeSubFs = Pick<
   typeof fsDisk.promises,
   | 'access'
@@ -94,8 +99,32 @@ export type CompositeSubFs = Pick<
   | 'symlink'
 > & {
   name: string;
+
+  /**
+   * Explicit declaration of the filesystem type.
+   * - 'folder': This SubFS only handles directories
+   * - 'file': This SubFS only handles files
+   * - 'fs': This SubFS handles both files and folders (default)
+   */
+  fsType: FsType;
+
+  context?: FsOperationContext;
+
+  newContext?: FsOperationContext;
+
+  readonly rootInstanceId: string;
+  compositeFs: CompositeFs;
+
+  withContext(context: FsOperationContext): BaseCompositeSubFs;
+  attach(compositFs: CompositeFs): void;
+
+  readDirFiltering?(
+    path: fsDisk.PathLike,
+    entries: string[]
+  ): Promise<string[]>;
+
   readFile(
-    path: fsDisk.PathLike | IFileHandle,
+    path: fsDisk.PathLike,
     options?: IReadFileOptions | string
   ): Promise<TDataOut>;
 

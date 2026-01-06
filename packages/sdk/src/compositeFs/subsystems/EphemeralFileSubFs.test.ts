@@ -6,18 +6,11 @@ import * as nodeFs from 'node:fs';
 
 describe('EphemeralFileSubFs', () => {
   let ephemeralSubFs: EphemeralSubFs;
-  let parentFs: CompositeFs;
 
   beforeEach(() => {
-    // Create a mock parent fs
-    parentFs = {
-      parentFs: {} as any, // Required to not throw error in constructor
-    } as CompositeFs;
-
     ephemeralSubFs = new EphemeralSubFs({
       name: 'ephemeral-subfs',
-      parentFs,
-      gitRoot: '/test',
+      rootPath: '/',
       ephemeralPatterns: [
         '**/ephemeral_everywhere',
         'temp/**', // any file under temp/
@@ -439,8 +432,7 @@ describe('EphemeralFileSubFs', () => {
       // Create a new instance - data should be gone
       const newEphemeralSubFs = new EphemeralSubFs({
         name: 'new-ephemeral-subfs',
-        parentFs,
-        gitRoot: '/test',
+        rootPath: '/',
         ephemeralPatterns: ['temp/**'],
       });
 

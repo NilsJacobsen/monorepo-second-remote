@@ -6,10 +6,39 @@ import {
 } from './resolveOperationBranchName.js';
 import * as nodeFs from 'node:fs';
 import { getCurrentBranch } from '../getCurrentBranch.js';
+import { tryResolveRef } from '../utils.js';
+import { CompositeSubFsAdapter } from '../../../CompositeSubFsAdapter.js';
 
-export const gitBranchOperationHeadVirtualFile: VirtualFileDefinition = {
-  type: 'gitBranchOperationHeadVirtualFile',
-  rootType: 'file',
+/**
+ * Creates a CompositeSubFsAdapter for branch operation head operations
+ *
+ * This adapter handles reading and writing the operation branch head.
+ *
+ * @example
+ * ```ts
+ * const adapter = createBranchOperationHeadAdapter({
+ *   gitStorageFs: memFs,
+ *   gitRoot: '/my-repo',
+ * });
+ * ```
+ */
+export function createBranchOperationHeadAdapter({
+  gitStorageFs,
+  gitRoot,
+  rootPath,
+}: {
+  gitStorageFs: any;
+  gitRoot: string;
+  rootPath?: string;
+}): CompositeSubFsAdapter {
+  const adapter = new CompositeSubFsAdapter({
+    name: 'branch-operation-head',
+    gitStorageFs,
+    gitRoot,
+    rootPath: rootPath || gitRoot,
+    handler: {
+      type: 'gitBranchOperationHeadVirtualFile',
+      rootType: 'file',
 
   getStats: async ({ gitRoot, nodeFs, pathParams }) => {
     if (pathParams.branchName === undefined) {
@@ -177,18 +206,18 @@ export const gitBranchOperationHeadVirtualFile: VirtualFileDefinition = {
       pathParams.branchName
     );
 
-    const operationBranchRef = await git.resolveRef({
-      fs: nodeFs,
-      dir: gitRoot,
-      ref: `refs/heads/${operationBranchName}`,
-    });
-
     // TODO think about an empty file to remove the branch again?
     if (!operationBranchName) {
       throw new Error(
         `Operation branch name could not be resolved for branch ${pathParams.branchName}`
       );
     }
+
+    const operationBranchRef = await tryResolveRef(
+      nodeFs,
+      gitRoot,
+      operationBranchName
+    );
 
     const requestedOperationBranchHead = content.toString().trim();
     let newOperationBranchHead: string | undefined = undefined;
@@ -267,4 +296,8 @@ export const gitBranchOperationHeadVirtualFile: VirtualFileDefinition = {
   ): Promise<void> {
     throw new Error('not implemented');
   },
-};
+    },
+  });
+
+  return adapter;
+}

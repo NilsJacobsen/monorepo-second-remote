@@ -14,10 +14,39 @@ import {
   operationBranchNamePostfix,
 } from './resolveOperationBranchName.js';
 import { getCurrentBranch } from '../getCurrentBranch.js';
+import { decodeBranchNameFromVfs } from './nameEncoding.js';
+import { CompositeSubFsAdapter } from '../../../CompositeSubFsAdapter.js';
 
-export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
-  type: 'gitBranchOperationVirtualFile',
-  rootType: 'file',
+/**
+ * Creates a CompositeSubFsAdapter for branch operation file operations
+ *
+ * This adapter handles branch operation tracking and management.
+ *
+ * @example
+ * ```ts
+ * const adapter = createBranchOperationAdapter({
+ *   gitStorageFs: memFs,
+ *   gitRoot: '/my-repo',
+ * });
+ * ```
+ */
+export function createBranchOperationAdapter({
+  gitStorageFs,
+  gitRoot,
+  rootPath,
+}: {
+  gitStorageFs: any;
+  gitRoot: string;
+  rootPath?: string;
+}): CompositeSubFsAdapter {
+  const adapter = new CompositeSubFsAdapter({
+    name: 'branch-operation',
+    gitStorageFs,
+    gitRoot,
+    rootPath: rootPath || gitRoot,
+    handler: {
+      type: 'gitBranchOperationVirtualFile',
+      rootType: 'file',
 
   getStats: async args => {
     const { gitRoot, nodeFs, pathParams } = args;
@@ -205,24 +234,30 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
     let firstOperation = false;
 
     if (!operationBranchName) {
-      operationBranchName =
-        'legit/__' + pathParams.branchName + operationBranchNamePostfix;
+      operationBranchName = pathParams.branchName + operationBranchNamePostfix;
       // Create branch if it doesn't exist
       await git.branch({
         fs: nodeFs,
         dir: gitRoot,
-        ref: operationBranchName,
+        ref: decodeBranchNameFromVfs(operationBranchName),
         object: branchCommit,
+      });
+
+      const branches = await git.listBranches({
+        fs: nodeFs,
+        dir: gitRoot,
+        
       });
 
       firstOperation = true;
     }
 
-    const operationBranchCommit = await git.resolveRef({
-      fs: nodeFs,
-      dir: gitRoot,
-      ref: `refs/heads/${operationBranchName}`,
-    });
+    const operationBranchCommit = (await tryResolveRef(
+      nodeFs,
+      gitRoot,
+      operationBranchName
+    ))!;
+
     // read tree also accepts a git commit - it will resolve the tree within the commit
     const currentTree = await git.readTree({
       fs: nodeFs,
@@ -278,7 +313,7 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
     await git.writeRef({
       fs: nodeFs,
       dir: gitRoot,
-      ref: `refs/heads/${operationBranchName}`,
+      ref: `refs/heads/${decodeBranchNameFromVfs(operationBranchName)}`,
       value: newCommitOid,
       force: true,
     });
@@ -308,4 +343,8 @@ export const gitBranchOperationVirtualFile: VirtualFileDefinition = {
   ): Promise<void> {
     throw new Error('not implemented');
   },
-};
+    },
+  });
+
+  return adapter;
+}

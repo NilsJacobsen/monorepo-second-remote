@@ -2,12 +2,8 @@ import * as nodeFs from 'node:fs';
 import { IFs } from 'memfs';
 import { CompositeFs } from '../../../CompositeFs.js';
 import { gitBranchesListVirtualFile } from './gitBranchesListVirtualFile.js';
-import { gitBranchFileVirtualFile } from './gitBranchFileVirtualFile.js';
-import { gitBranchHeadVirtualFile } from './gitBranchHeadVirtualFile.js';
 import { gitBranchTipVirtualFile } from './gitBranchTipVirtualFile.js';
-import { gitCommitFileVirtualFile } from './gitCommitFileVirtualFile.js';
 import { gitStatusVirtualFile } from './gitStatusVirtualFile.js';
-import { legitVirtualFile } from './legitVirtualFile.js';
 
 export type VirtualFile =
   | {
@@ -35,6 +31,15 @@ export interface VirtualFileArgs {
   author: { name: string; email: string; date: number; timezoneOffset: number }; // The author info for commits
 }
 
+/**
+ * Definition of a virtual file in the Git subsystem
+ *
+ *  ->
+ *
+ * writeFile -> writes the whole file
+ * readFile -> writes the whole file
+ */
+
 export type VirtualFileDefinition = {
   type: string;
   rootType: 'folder' | 'file';
@@ -57,13 +62,13 @@ export type VirtualFileDefinition = {
   rmdir?: (args: VirtualFileArgs) => Promise<void>;
 };
 
-export const allGitVirtualFiles: VirtualFileDefinition[] = [
-  legitVirtualFile, // legit must have the highest prio because it should also match in sub paths for example in /.legit/branches/main/.legit
+// export const allGitVirtualFiles: VirtualFileDefinition[] = [
+//   legitVirtualFile, // legit must have the highest prio because it should also match in sub paths for example in /.legit/branches/main/.legit
 
-  gitStatusVirtualFile,
-  gitCommitFileVirtualFile,
-  gitBranchesListVirtualFile,
-  gitBranchFileVirtualFile,
-  gitBranchHeadVirtualFile,
-  gitBranchTipVirtualFile,
-];
+//   gitStatusVirtualFile,
+//   gitCommitFileVirtualFile,
+//   gitBranchesListVirtualFile,
+//   gitBranchFileVirtualFile,
+//   gitBranchHeadVirtualFile,
+//   gitBranchTipVirtualFile,
+// ];

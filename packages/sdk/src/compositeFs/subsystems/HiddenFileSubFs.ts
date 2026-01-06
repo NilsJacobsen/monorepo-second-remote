@@ -1,9 +1,8 @@
-import { CompositeSubFs } from '../CompositeSubFs.js';
 import CompositFsFileHandle from '../CompositeFsFileHandle.js';
 import type { PathLike } from 'fs';
 import ignore from 'ignore';
 import { BaseCompositeSubFs } from './BaseCompositeSubFs.js';
-import { CompositeFs } from '../CompositeFs.js';
+import { pathToString } from '../utils/path-helper.js';
 
 /**
  * FS utilized to hide files, it is responsible for files found in hiddenFiles
@@ -15,38 +14,45 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
 
   constructor({
     name,
-    parentFs,
-    gitRoot,
     hiddenFiles,
+    rootPath,
   }: {
     name: string;
-    parentFs: CompositeFs;
-    gitRoot: string;
+
     hiddenFiles: string[];
+    rootPath: string;
   }) {
     super({
       name,
-      parentFs,
-      gitRoot,
+      rootPath,
     });
     this.ig = ignore();
     this.ig.add(hiddenFiles);
   }
 
   override async responsible(filePath: string): Promise<boolean> {
-    // always use posix-style paths for ignore
-
     const normalized = filePath.replace(/\\/g, '/');
-    let relative = normalized.startsWith('./')
-      ? normalized.slice(2)
-      : normalized;
+
+    // If sourceRootPath is provided, strip it from the path before pattern matching
+    let relative = normalized;
+    if (this.rootPath) {
+      const rootPath = this.rootPath;
+      // Remove the root path prefix if present
+      if (normalized.startsWith(rootPath + '/')) {
+        relative = normalized.slice(rootPath.length + 1);
+      } else if (normalized.startsWith(rootPath)) {
+        relative = normalized.slice(rootPath.length);
+      }
+    }
+
+    // Remove leading ./ or /
+    relative = relative.startsWith('./') ? relative.slice(2) : relative;
     relative = relative.startsWith('/') ? relative.slice(1) : relative;
 
     if (relative === '' || relative === '.') {
       return false;
     }
-    const ignores = this.ig.ignores(relative);
-    return ignores;
+    return this.ig.ignores(relative);
   }
 
   override fileType(): number {
@@ -55,7 +61,7 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
 
   private error(path: any): Error {
     return new Error(
-      `Access to hidden file is not allowed: ${this.toStr(path)}`
+      `Access to hidden file is not allowed: ${pathToString(path)}`
     );
   }
 
@@ -89,6 +95,25 @@ export class HiddenFileSubFs extends BaseCompositeSubFs {
 
   override async mkdir(path: PathLike): Promise<any> {
     throw this.error(path);
+  }
+
+  override async readDirFiltering?(
+    path: PathLike,
+    entries: string[]
+  ): Promise<string[]> {
+    // go through all entries, attach the path to them, and check if it matches with the ignore pattern - if so remove them from the array
+    const result: string[] = [];
+    for (const entry of entries) {
+      const fullPath =
+        pathToString(path) !== '/'
+          ? pathToString(path) + '/' + entry
+          : '/' + entry;
+      const isIgnored = await this.responsible(fullPath);
+      if (!isIgnored) {
+        result.push(entry);
+      }
+    }
+    return result;
   }
 
   override async readdir(path: PathLike): Promise<any> {

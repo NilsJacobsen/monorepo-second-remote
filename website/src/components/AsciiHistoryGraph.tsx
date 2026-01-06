@@ -53,7 +53,7 @@ export default function AsciiHistoryGraph({
     commitMap.set(commit.oid, commit);
   });
 
-  // Determine which branch a commit belongs to
+  // Determine which branch a commit setData to
   const branchOf = (oid: string): number => {
     for (let i = 0; i < allCommitArrays.length; i++) {
       if (allCommitArrays[i].some(c => c.oid === oid)) return i;

@@ -5,6 +5,8 @@ import * as nodeFs from 'node:fs';
 import { getCurrentBranch } from './getCurrentBranch.js';
 import { tryResolveRef } from './utils.js';
 import { decodeBranchNameFromVfs } from './operations/nameEncoding.js';
+import { getReferenceBranch } from './getReferenceBranch.js';
+import { CompositeSubFsAdapter } from '../../CompositeSubFsAdapter.js';
 
 function getGitCacheFromFs(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -19,9 +21,36 @@ function getGitCacheFromFs(fs: any): any {
   return {};
 }
 
-export const gitApplyCurrentChangesToVirtualFile: VirtualFileDefinition = {
-  type: 'gitApplyCurrentChangesToVirtualFile',
-  rootType: 'file',
+/**
+ * Creates a CompositeSubFsAdapter for applying changes operations
+ *
+ * This adapter handles applying changes from the current branch to the reference branch.
+ *
+ * @example
+ * ```ts
+ * const adapter = createApplyChangesAdapter({
+ *   gitStorageFs: memFs,
+ *   gitRoot: '/my-repo',
+ * });
+ * ```
+ */
+export function createApplyChangesAdapter({
+  gitStorageFs,
+  gitRoot,
+  rootPath,
+}: {
+  gitStorageFs: any;
+  gitRoot: string;
+  rootPath?: string;
+}): CompositeSubFsAdapter {
+  const adapter = new CompositeSubFsAdapter({
+    name: 'apply-changes',
+    gitStorageFs,
+    gitRoot,
+    rootPath: rootPath || gitRoot,
+    handler: {
+      type: 'gitApplyCurrentChangesToVirtualFile',
+      rootType: 'file',
 
   getStats: async ({ gitRoot, nodeFs, pathParams, userSpaceFs }) => {
     const epoch = new Date(0);
@@ -72,7 +101,8 @@ export const gitApplyCurrentChangesToVirtualFile: VirtualFileDefinition = {
 
   writeFile: async ({ gitRoot, nodeFs, content, userSpaceFs, author }) => {
     const sourceBranch = await getCurrentBranch(gitRoot, nodeFs);
-    const targetBranch = content.toString().trim();
+    const targetBranch = await getReferenceBranch(gitRoot, nodeFs);
+    const commitMessage = content.toString().trim();
 
     const source = await tryResolveRef(
       nodeFs,
@@ -114,15 +144,17 @@ export const gitApplyCurrentChangesToVirtualFile: VirtualFileDefinition = {
       return;
     }
 
+    const time = Math.floor(Date.now() / 1000);
+
     const applyCommitOid = await git.commit({
       fs: nodeFs,
       dir: gitRoot,
-      message: 'Changes from ' + sourceBranch + ' applied to ' + targetBranch,
+      message: commitMessage,
       tree: sourceTree.oid,
       noUpdateBranch: true,
-      author,
+      author: { ...author, timestamp: time },
       // TODO only reference the branch commit if the commit has changed since last operation commit referencing the branch commit
-      parent: [source, target],
+      parent: [target],
     });
 
     const refApplyCommitOid = await git.commit({
@@ -131,7 +163,8 @@ export const gitApplyCurrentChangesToVirtualFile: VirtualFileDefinition = {
       message: 'Changes from ' + sourceBranch + ' applied to ' + targetBranch,
       tree: sourceTree.oid,
       noUpdateBranch: true,
-      author,
+
+      author: { ...author, timestamp: time - 3 },
       // TODO only reference the branch commit if the commit has changed since last operation commit referencing the branch commit
       parent: [source, applyCommitOid],
     });
@@ -163,4 +196,8 @@ export const gitApplyCurrentChangesToVirtualFile: VirtualFileDefinition = {
   ): Promise<void> {
     throw new Error('not implemented');
   },
-};
+    },
+  });
+
+  return adapter;
+}

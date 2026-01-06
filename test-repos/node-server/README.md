@@ -24,4 +24,3 @@ pnpm dev
 - Gets the current git branch
 
 This demonstrates server-side usage of the Legit SDK without any browser dependencies.
-

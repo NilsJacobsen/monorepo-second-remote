@@ -24,6 +24,7 @@ import type {
 import { CompositeFs } from '../CompositeFs.js';
 import { CompositeSubFsDir } from '../CompositeSubFs.js';
 import ignore from 'ignore';
+import { pathToString } from '../utils/path-helper.js';
 
 /**
  * FS utilized to provide ephemeral storage using in-memory filesystem
@@ -47,23 +48,17 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
 
   constructor({
     name,
-    parentFs,
-    gitRoot,
+    rootPath,
     ephemeralPatterns,
   }: {
     name: string;
-    parentFs: CompositeFs;
-    gitRoot: string;
+    rootPath: string;
     ephemeralPatterns: string[];
   }) {
     super({
       name,
-      parentFs,
-      gitRoot,
+      rootPath,
     });
-
-    this.compositFs = parentFs;
-    this.gitRoot = gitRoot;
 
     this.ig = ignore();
     this.ig.add(ephemeralPatterns);
@@ -75,18 +70,27 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
   }
 
   override async responsible(filePath: string): Promise<boolean> {
-    // Use same logic as HiddenFileSubFs for pattern matching
     const normalized = filePath.replace(/\\/g, '/');
-    let relative = normalized.startsWith('./')
-      ? normalized.slice(2)
-      : normalized;
+
+    // If sourceRootPath is provided, strip it from the path before pattern matching
+    let relative = normalized;
+    if (this.rootPath) {
+      // Remove the root path prefix if present
+      if (normalized.startsWith(this.rootPath + '/')) {
+        relative = normalized.slice(this.rootPath.length + 1);
+      } else if (normalized.startsWith(this.rootPath)) {
+        relative = normalized.slice(this.rootPath.length);
+      }
+    }
+
+    // Remove leading ./ or /
+    relative = relative.startsWith('./') ? relative.slice(2) : relative;
     relative = relative.startsWith('/') ? relative.slice(1) : relative;
 
     if (relative === '' || relative === '.') {
       return false;
     }
-    const ignores = this.ig.ignores(relative);
-    return ignores;
+    return this.ig.ignores(relative);
   }
 
   override fileType(): number {
@@ -113,7 +117,7 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
 
     const filehandle = new CompositFsFileHandle({
       fs: this,
-      compositeFs: this.compositFs,
+      compositeFs: this.compositeFs,
       subFsFileDescriptor: fh.fd,
       parentFsFileDescriptors: [fh.fd],
     });
@@ -263,7 +267,7 @@ export class EphemeralSubFs extends BaseCompositeSubFs {
 
   override async lookup(filePath: string): Promise<number> {
     // No direct equivalent in fs.promises, so throw error or implement as needed
-    throw new Error(`lookup is not implemented for: ${this.toStr(filePath)}`);
+    throw new Error(`lookup is not implemented for: ${pathToString(filePath)}`);
   }
 
   override async close(fh: CompositFsFileHandle): Promise<void> {

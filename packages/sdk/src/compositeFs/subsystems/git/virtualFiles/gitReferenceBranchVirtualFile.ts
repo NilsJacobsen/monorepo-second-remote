@@ -1,15 +1,46 @@
 import git from '@legit-sdk/isomorphic-git';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 import * as nodeFs from 'node:fs';
-import { getTargetBranch, setTargetBranch } from './getTargetBranch.js';
+import {
+  getReferenceBranch,
+  setReferenceBranch,
+} from './getReferenceBranch.js';
 import { tryResolveRef } from './utils.js';
+import { CompositeSubFsAdapter } from '../../CompositeSubFsAdapter.js';
 
-export const gitTargetBranchVirtualFile: VirtualFileDefinition = {
-  type: 'gitTargetBranchVirtualFile',
-  rootType: 'file',
+/**
+ * Creates a CompositeSubFsAdapter for reference branch operations
+ *
+ * This adapter handles reading and writing the reference branch name.
+ *
+ * @example
+ * ```ts
+ * const adapter = createReferenceBranchAdapter({
+ *   gitStorageFs: memFs,
+ *   gitRoot: '/my-repo',
+ * });
+ * ```
+ */
+export function createReferenceBranchAdapter({
+  gitStorageFs,
+  gitRoot,
+  rootPath,
+}: {
+  gitStorageFs: any;
+  gitRoot: string;
+  rootPath?: string;
+}): CompositeSubFsAdapter {
+  const adapter = new CompositeSubFsAdapter({
+    name: 'reference-branch',
+    gitStorageFs,
+    gitRoot,
+    rootPath: rootPath || gitRoot,
+    handler: {
+      type: 'gitReferenceBranchVirtualFile',
+      rootType: 'file',
 
   getStats: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getTargetBranch(gitRoot, nodeFs);
+    const branchName = await getReferenceBranch(gitRoot, nodeFs);
     const size = branchName.length;
 
     return {
@@ -44,7 +75,7 @@ export const gitTargetBranchVirtualFile: VirtualFileDefinition = {
   },
 
   getFile: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getTargetBranch(gitRoot, nodeFs);
+    const branchName = await getReferenceBranch(gitRoot, nodeFs);
     return {
       type: 'file',
       content: branchName + '\n',
@@ -66,7 +97,7 @@ export const gitTargetBranchVirtualFile: VirtualFileDefinition = {
     }
 
     // Use setTargetBranch to set the new branch
-    await setTargetBranch(gitRoot, nodeFs, newBranchName);
+    await setReferenceBranch(gitRoot, nodeFs, newBranchName);
   },
 
   rename(args) {
@@ -79,4 +110,8 @@ export const gitTargetBranchVirtualFile: VirtualFileDefinition = {
   ): Promise<void> {
     throw new Error('not implemented');
   },
-};
+    },
+  });
+
+  return adapter;
+}

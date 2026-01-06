@@ -3,32 +3,30 @@ import { createLegitSyncService } from './sync/createLegitSyncService.js';
 import git from '@legit-sdk/isomorphic-git';
 
 import { CompositeFs } from './compositeFs/CompositeFs.js';
-import { EphemeralSubFs } from './compositeFs/subsystems/EphemeralFileSubFs.js';
-import { GitSubFs } from './compositeFs/subsystems/git/GitSubFs.js';
+import { CopyOnWriteSubFs } from './compositeFs/subsystems/CopyOnWriteSubFs.js';
 import { HiddenFileSubFs } from './compositeFs/subsystems/HiddenFileSubFs.js';
 import { createFsFromVolume, Volume } from 'memfs';
 import { createSessionManager, LegitUser } from './sync/sessionManager.js';
 import { createGitConfigTokenStore } from './sync/createGitConfigTokenStore.js';
-import { gitBranchFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchFileVirtualFile.js';
-import { gitBranchesListVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
-import { gitBranchHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitBranchHeadVirtualFile.js';
-import { legitVirtualFile } from './compositeFs/subsystems/git/virtualFiles/legitVirtualFile.js';
-import { gitCommitFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCommitFileVirtualFile.js';
-import { gitCommitVirtualFolder } from './compositeFs/subsystems/git/virtualFiles/gitCommitVirtualFolder.js';
-import { gitBranchOperationVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationVirtualFile.js';
+import { createBranchFileAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchFileVirtualFile.js';
+import { createBranchesListAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchesListVirtualFile.js';
+import { createBranchHeadAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchHeadVirtualFile.js';
+import { createLegitVirtualFileAdapter } from './compositeFs/subsystems/git/virtualFiles/legitVirtualFile.js';
+import { createCommitFileAdapter } from './compositeFs/subsystems/git/virtualFiles/gitCommitFileVirtualFile.js';
+import { createCommitFolderAdapter } from './compositeFs/subsystems/git/virtualFiles/gitCommitVirtualFolder.js';
+import { createBranchOperationAdapter } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationVirtualFile.js';
 
-import { gitBranchOperationsVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
-import { getThreadName } from './compositeFs/subsystems/git/virtualFiles/operations/getThreadName.js';
-import { gitBranchHistory } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
-import { gitBranchOperationHeadVirtualFile } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
-import { gitCurrentBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
-import { claudeVirtualSessionFileVirtualFile } from './compositeFs/subsystems/git/virtualFiles/claudeVirtualSessionFileVirtualFile.js';
-import {
-  createFsOperationFileLogger,
-  FsOperationLogger,
-} from './compositeFs/utils/fs-operation-logger.js';
-import { gitApplyCurrentChangesToVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
-import { gitTargetBranchVirtualFile } from './compositeFs/subsystems/git/virtualFiles/gitTargetBranchVirtualFile.js';
+import { createBranchOperationsAdapter } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
+
+import { createBranchHistoryAdapter } from './compositeFs/subsystems/git/virtualFiles/gitBranchHistory.js';
+import { createBranchOperationHeadAdapter } from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationHeadVirtualFile.js';
+import { createCurrentBranchAdapter } from './compositeFs/subsystems/git/virtualFiles/gitCurrentBranchVirtualFile.js';
+
+import { FsOperationLogger } from './compositeFs/utils/fs-operation-logger.js';
+import { createApplyChangesAdapter } from './compositeFs/subsystems/git/virtualFiles/gitApplyCurrentChangesToVirtualFile.js';
+import { createReferenceBranchAdapter } from './compositeFs/subsystems/git/virtualFiles/gitReferenceBranchVirtualFile.js';
+import { PassThroughToAsyncFsSubFs } from './compositeFs/subsystems/PassThroughToAsyncFsSubFs.js';
+import { CompositeSubFs } from './compositeFs/CompositeSubFs.js';
 
 function getGitCache(fs: any): any {
   // If it's a CompositeFs with gitCache, use it
@@ -73,7 +71,8 @@ export async function openLegitFs({
   },
   serverUrl = 'https://hub.legitcontrol.com',
   publicKey,
-  claudeHandler,
+  ephemaralGitConfig = false,
+  additionalFilterLayers,
 }: {
   storageFs: typeof nodeFs;
   gitRoot: string;
@@ -82,7 +81,8 @@ export async function openLegitFs({
   initialAuthor?: LegitUser;
   serverUrl?: string;
   publicKey?: string;
-  claudeHandler?: boolean;
+  ephemaralGitConfig?: boolean;
+  additionalFilterLayers?: CompositeSubFs[];
 }) {
   let repoExists = await storageFs.promises
     .readdir(gitRoot + '/.git')
@@ -168,150 +168,183 @@ export async function openLegitFs({
   // it propagates operations to the real filesystem (storageFs)
   // it allows the child copmositeFs to define file behavior while tunneling through to the real fs
   // this is used to be able to read and write within the .git folder while hiding it from the user
-  // const rootFs = new CompositeFs({
-  //   name: 'root',
-  //   // the root CompositeFs has no parent - it doesn't propagate up
-  //   parentFs: undefined,
-  //   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  //   storageFs,
-  //   gitRoot,
-  // });
 
-  // // Initialize gitCache
-  // rootFs.gitCache = {};
+  // Create an in-memory filesystem for copy-on-write storage
+  const copyFs = createFsFromVolume(new Volume());
 
-  // const rootEphemeralFs = new EphemeralSubFs({
-  //   name: 'root-ephemeral',
-  //   parentFs: rootFs,
-  //   gitRoot,
-  //   ephemeralPatterns: [],
-  // });
+  const rootCopyOnWriteFs = new CopyOnWriteSubFs({
+    name: 'root-copy-on-write',
 
-  // const rootHiddenFs = new HiddenFileSubFs({
-  //   name: 'root-hidden',
-  //   parentFs: rootFs,
-  //   gitRoot,
-  //   hiddenFiles: [],
-  // });
-
-  // rootFs.setHiddenFilesSubFs(rootHiddenFs);
-  // rootFs.setEphemeralFilesSubFs(rootEphemeralFs);
-
-  const userSpaceFs = new CompositeFs({
-    name: 'git',
-    storageFs: storageFs,
-    gitRoot: gitRoot,
-    defaultBranch: anonymousBranch,
+    sourceFs: storageFs,
+    copyToFs: copyFs,
+    copyToRootPath: '/copies',
+    rootPath: gitRoot,
+    patterns: ephemaralGitConfig ? ['**/.git/config'] : [],
   });
-  userSpaceFs.gitCache = {};
 
-  const routerConfig = {
-    '.legit': {
-      '.': legitVirtualFile,
-      operation: gitBranchOperationVirtualFile,
-      head: gitBranchHeadVirtualFile,
-      operationHead: gitBranchOperationHeadVirtualFile,
-      operationHistory: gitBranchOperationsVirtualFile,
-      history: gitBranchHistory,
-      currentBranch: gitCurrentBranchVirtualFile,
-      'target-branch': gitTargetBranchVirtualFile,
-      'apply-changes': gitApplyCurrentChangesToVirtualFile,
-      branches: {
-        '.': gitBranchesListVirtualFile,
-        '[branchName]': {
-          // branch names could include / so this is not a good delimiter here
-          '.legit': {
-            '.': legitVirtualFile,
-            operation: gitBranchOperationVirtualFile,
-            head: gitBranchHeadVirtualFile,
-            operationHead: gitBranchOperationHeadVirtualFile,
-            operationHistory: gitBranchOperationsVirtualFile,
-            history: gitBranchHistory,
-            threadName: getThreadName,
-          },
-          '[[...filePath]]': gitBranchFileVirtualFile,
-        },
-      },
-      commits: {
-        '.': gitCommitVirtualFolder,
-        '[sha_1_1_2]': {
-          '.': gitCommitVirtualFolder,
-          '[sha1_3__40]': {
-            '[[...filePath]]': gitCommitFileVirtualFile,
-          },
-        },
-      },
-      // TODO add a compare setup
-      // compare: {
-      //   '[[aWithB]]': {
-      //     '.legit': {
-      //       'changelist': getChangeList,
-      //     }, // gitCompareVirtualFile,
-      //     '[...filePath]': gitCompareVirtualFile,
-      //   }
-      // }
+  const rootPassThroughFileSystem = new PassThroughToAsyncFsSubFs({
+    name: 'root-passthrough',
+    passThroughFs: storageFs,
+    rootPath: gitRoot,
+  });
+
+  const gitStorageFs = new CompositeFs({
+    name: 'root',
+    filterLayers: [rootCopyOnWriteFs],
+    rootPath: gitRoot,
+    routes: {
+      '[[...relativePath]]': rootPassThroughFileSystem,
     },
-    '.claude': {
-      '[[...filePath]]': claudeVirtualSessionFileVirtualFile,
-    },
-    '[[...filePath]]': gitBranchFileVirtualFile,
+  });
+
+  /**
+   * Create adapters for each virtual file type
+   * Each adapter wraps a single handler and receives route context from CompositeFs
+   */
+
+  const adapterConfig = {
+    gitStorageFs: gitStorageFs,
+    gitRoot: gitRoot,
+    rootPath: gitRoot,
   };
 
-  if (!claudeHandler && routerConfig['.claude']) {
-    // @ts-ignore
-    // NOTE the order of the config currently matters :-/
-    delete routerConfig['.claude'];
-  }
+  // .legit root folder files
+  const legitVirtualFileAdapter = createLegitVirtualFileAdapter(adapterConfig);
 
-  const gitSubFs = new GitSubFs({
-    name: 'git-subfs',
-    parentFs: userSpaceFs,
-    gitRoot: gitRoot,
-    gitStorageFs: storageFs,
-    routerConfig,
-  });
+  const operationAdapter = createBranchOperationAdapter(adapterConfig);
+
+  const headAdapter = createBranchHeadAdapter(adapterConfig);
+
+  const operationHeadAdapter = createBranchOperationHeadAdapter(adapterConfig);
+
+  const operationHistoryAdapter = createBranchOperationsAdapter(adapterConfig);
+
+  const historyAdapter = createBranchHistoryAdapter(adapterConfig);
+
+  const currentBranchAdapter = createCurrentBranchAdapter(adapterConfig);
+  const referenceBranchAdapter = createReferenceBranchAdapter(adapterConfig);
+
+  const applyChangesAdapter = createApplyChangesAdapter(adapterConfig);
+
+  // Branch files and folders
+  const branchesListAdapter = createBranchesListAdapter(adapterConfig);
+
+  const branchFileAdapter = createBranchFileAdapter(adapterConfig);
+
+  // Commit files and folders
+  const commitFolderAdapter = createCommitFolderAdapter(adapterConfig);
+
+  const commitFileAdapter = createCommitFileAdapter(adapterConfig);
+
 
   const hiddenFiles = showKeepFiles ? ['.git'] : ['.git', '.keep'];
   const gitFsHiddenFs = new HiddenFileSubFs({
     name: 'git-hidden-subfs',
-    parentFs: userSpaceFs,
-    gitRoot,
     hiddenFiles,
+    rootPath: gitRoot,
   });
 
-  const gitFsEphemeralFs = new EphemeralSubFs({
-    name: 'git-ephemeral-subfs',
-    parentFs: userSpaceFs,
-    gitRoot,
-    ephemeralPatterns: [
-      '**/._*',
-      '**/.DS_Store',
-      '**/.AppleDouble/',
-      '**/.AppleDB',
-      '**/.AppleDesktop',
-      '**/.Spotlight-V100',
-      '**/.TemporaryItems',
-      '**/.Trashes',
-      '**/.fseventsd',
-      '**/.VolumeIcon.icns',
-      '**/.ql_disablethumbnails',
-      // libre office creates a lock file
-      '**/.~lock.*',
-      // libre office creates a temp file
-      '**/lu[0-9a-zA-Z]*.tmp',
-      // legit uses a tmp file as well
-      '**/.metaentries.json.tmp',
-      '**/**.tmp.**',
-      '**/**.sb-**',
+  // Read .gitignore file to add patterns to copy-on-write
+  let gitignorePatterns: string[] = [];
+  try {
+    const gitignorePath = gitRoot + '/.gitignore';
+    const gitignoreContent = await gitStorageFs.readFile(gitignorePath, 'utf8');
+    gitignorePatterns = gitignoreContent
+      .split('\n')
+      .filter(line => line.trim() !== '' && !line.trim().startsWith('#'))
+      .map(line => line.trim());
+  } catch (error) {
+    // .gitignore doesn't exist or can't be read, that's okay
+  }
+
+  const copyOnWritePatterns: string[] = [
+    '**/._*',
+    '**/.DS_Store',
+    '**/.AppleDouble/',
+    '**/.AppleDB',
+    '**/.AppleDesktop',
+    '**/.Spotlight-V100',
+    '**/.TemporaryItems',
+    '**/.Trashes',
+    '**/.fseventsd',
+    '**/.VolumeIcon.icns',
+    '**/.ql_disablethumbnails',
+    // libre office creates a lock file
+    '**/.~lock.*',
+    // libre office creates a temp file
+    '**/lu[0-9a-zA-Z]*.tmp',
+    // legit uses a tmp file as well
+    '**/.metaentries.json.tmp',
+    '**/**.tmp.**',
+    '**/**.sb-**',
+    ...gitignorePatterns, // Add patterns from .gitignore
+  ];
+
+  // Create an in-memory filesystem for copy-on-write storage
+  const userCopyFs = createFsFromVolume(new Volume());
+
+  const gitFsCopyOnWriteFs = new CopyOnWriteSubFs({
+    name: 'git-copy-on-write-subfs',
+
+    sourceFs: gitStorageFs,
+    copyToFs: userCopyFs,
+    copyToRootPath: '/user-copies',
+    rootPath: gitRoot,
+    patterns: copyOnWritePatterns,
+  });
+
+  const userSpaceFs = new CompositeFs({
+    name: 'git',
+    rootPath: gitRoot,
+    filterLayers: [
+      gitFsHiddenFs,
+      gitFsCopyOnWriteFs,
+      ...(additionalFilterLayers || []),
     ],
+    routes: {
+      '.legit': {
+        '.': legitVirtualFileAdapter,
+        operation: operationAdapter,
+        head: headAdapter,
+        operationHead: operationHeadAdapter,
+        operationHistory: operationHistoryAdapter,
+        history: historyAdapter,
+        currentBranch: currentBranchAdapter,
+        'reference-branch': referenceBranchAdapter,
+        'apply-changes': applyChangesAdapter,
+        branches: {
+          '.': branchesListAdapter,
+          '[branchName]': {
+            // branch names could include / so this is not a good delimiter here
+            '.legit': {
+              '.': legitVirtualFileAdapter,
+              operation: operationAdapter,
+              head: headAdapter,
+              operationHead: operationHeadAdapter,
+              operationHistory: operationHistoryAdapter,
+              history: historyAdapter,
+            },
+            '[[...filePath]]': branchFileAdapter,
+          },
+        },
+        commits: {
+          '.': commitFolderAdapter,
+          '[sha_1_1_2]': {
+            '.': commitFolderAdapter,
+            '[sha1_3__40]': {
+              '[[...filePath]]': commitFileAdapter,
+            },
+          },
+        },
+      },
+      '[[...filePath]]': branchFileAdapter,
+    },
   });
 
-  // Add legitFs to compositFs
-  userSpaceFs.addSubFs(gitSubFs);
-  userSpaceFs.setHiddenFilesSubFs(gitFsHiddenFs);
-  userSpaceFs.setEphemeralFilesSubFs(gitFsEphemeralFs);
-
-  const tokenStore = createGitConfigTokenStore({ storageFs, gitRoot });
+  const tokenStore = createGitConfigTokenStore({
+    storageFs: gitStorageFs as any,
+    gitRoot,
+  });
   const sessionManager = createSessionManager(tokenStore, publicKey);
 
   let syncService = createLegitSyncService({
@@ -329,6 +362,7 @@ export async function openLegitFs({
   const legitfs = Object.assign(userSpaceFs, {
     auth: sessionManager,
     sync: syncService,
+    _storageFs: gitStorageFs,
 
     setLogger(logger: FsOperationLogger | undefined) {
       userSpaceFs.setLoggger(logger);
