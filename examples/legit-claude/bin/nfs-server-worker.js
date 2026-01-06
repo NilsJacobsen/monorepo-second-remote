@@ -8,6 +8,7 @@ import {
 
 import { openLegitFs } from '@legit-sdk/core';
 import * as fs from 'fs';
+import { createClaudeVirtualSessionFileAdapter } from './claudeVirtualSessionFileVirtualFile.js';
 
 // Get configuration from command line arguments or environment variables
 const SERVE_POINT = process.argv[2];

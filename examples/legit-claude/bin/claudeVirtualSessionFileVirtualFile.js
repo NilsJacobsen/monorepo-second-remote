@@ -1,4 +1,4 @@
-import { CompositeSubFsAdapter } from '../../../packages/sdk/src/compositeFs/subsystems/CompositeSubFsAdapter.js';
+import { CompositeSubFsAdapter } from '@legit-sdk/core';
 
 const SESSION_DATA_PATH = 'session_data';
 
@@ -465,7 +465,6 @@ export function createClaudeVirtualSessionFileAdapter({
     return normalizedPath.startsWith('/.claude/');
   };
 
-  
   adapter.getAuthor = async () => {
     return {};
   };
