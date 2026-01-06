@@ -39,8 +39,9 @@ export function createReferenceBranchAdapter({
       type: 'gitReferenceBranchVirtualFile',
       rootType: 'file',
 
-  getStats: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getReferenceBranch(gitRoot, nodeFs);
+  getStats: async (args) => {
+    const { gitRoot } = args;
+    const branchName = await getReferenceBranch(gitRoot, gitStorageFs);
     const size = branchName.length;
 
     return {
@@ -74,8 +75,9 @@ export function createReferenceBranchAdapter({
     } as any;
   },
 
-  getFile: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getReferenceBranch(gitRoot, nodeFs);
+  getFile: async (args) => {
+    const { gitRoot } = args;
+    const branchName = await getReferenceBranch(gitRoot, gitStorageFs);
     return {
       type: 'file',
       content: branchName + '\n',
@@ -84,12 +86,13 @@ export function createReferenceBranchAdapter({
     };
   },
 
-  writeFile: async ({ gitRoot, nodeFs, content }) => {
+  writeFile: async (args) => {
+    const { gitRoot, content } = args;
     const newBranchName = content.toString().trim();
 
     // Check that the branch exists before setting it
 
-    const ref = await tryResolveRef(nodeFs, gitRoot, newBranchName);
+    const ref = await tryResolveRef(gitStorageFs, gitRoot, newBranchName);
     if (!ref) {
       throw new Error(
         `Branch ${newBranchName} does not exist in the repository`
@@ -97,7 +100,7 @@ export function createReferenceBranchAdapter({
     }
 
     // Use setTargetBranch to set the new branch
-    await setReferenceBranch(gitRoot, nodeFs, newBranchName);
+    await setReferenceBranch(gitRoot, gitStorageFs, newBranchName);
   },
 
   rename(args) {

@@ -40,13 +40,13 @@ export function createBranchHistoryAdapter({
       type: 'gitBranchHistory',
       rootType: 'file',
 
-  getStats: async ({ gitRoot, nodeFs, pathParams }) => {
+  getStats: async ({ gitRoot, pathParams }) => {
     if (pathParams.branchName === undefined) {
-      pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+      pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     }
 
     let headCommit = await tryResolveRef(
-      nodeFs,
+      gitStorageFs,
       gitRoot,
       pathParams.branchName
     );
@@ -56,7 +56,7 @@ export function createBranchHistoryAdapter({
     }
 
     const commit = await git.readCommit({
-      fs: nodeFs,
+      fs: gitStorageFs,
       dir: gitRoot,
       oid: headCommit,
     });
@@ -95,20 +95,20 @@ export function createBranchHistoryAdapter({
     } as any;
   },
   getFile: async args => {
-    const { gitRoot, nodeFs, pathParams } = args;
+    const { gitRoot, pathParams } = args;
 
     // Read all commits from the operation branch and collect their messages
     let branchName = pathParams.branchName;
 
     if (branchName === undefined) {
-      branchName = await getCurrentBranch(gitRoot, nodeFs);
+      branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     }
 
     const commits: any[] = [];
     if (branchName) {
       // Resolve the operation branch ref
       const operationBranchRef = await tryResolveRef(
-        nodeFs,
+        gitStorageFs,
         gitRoot,
         branchName
       );
@@ -117,7 +117,7 @@ export function createBranchHistoryAdapter({
       // Walk through the commits in the operation branch
       let oid: string | undefined = operationBranchRef;
       while (oid && !isFirstOperation) {
-        const commit = await git.readCommit({ fs: nodeFs, dir: gitRoot, oid });
+        const commit = await git.readCommit({ fs: gitStorageFs, dir: gitRoot, oid });
         commits.push({
           oid: commit.oid,
           ...commit.commit,

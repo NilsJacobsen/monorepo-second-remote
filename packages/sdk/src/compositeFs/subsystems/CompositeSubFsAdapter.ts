@@ -28,28 +28,6 @@ import * as nodeFs from 'node:fs';
 import { VirtualFileDefinition } from './git/virtualFiles/gitVirtualFiles.js';
 import { toDirEntry } from './git/virtualFiles/utils.js';
 
-const stub = async () => undefined;
-const stubStats = async () =>
-  ({
-    isFile: () => true,
-    isDirectory: () => false,
-    size: 0,
-    mode: 0,
-    mtime: new Date(),
-    ctime: new Date(),
-    atime: new Date(),
-    birthtime: new Date(),
-  }) as any;
-
-const noAdditionalFiles = {
-  type: 'directory',
-  pattern: /.*/,
-  getFile: stub,
-  getStats: stubStats,
-  rename: stub,
-  mkdir: stub,
-};
-
 /**
  * CompositeSubFsAdapter - Adapts a virtual file handler to work as a SubFS
  *
@@ -182,7 +160,7 @@ export class CompositeSubFsAdapter
       filePath,
       userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.storageFs,
+
       pathParams: routeParams,
       author: author,
     });
@@ -278,8 +256,8 @@ export class CompositeSubFsAdapter
         cacheFs: this.memFs,
         filePath: path.toString(),
         userSpaceFs: this.compositeFs,
-        nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
+
         pathParams: routeParams,
         ...optionsToPass,
         author: author,
@@ -396,7 +374,7 @@ export class CompositeSubFsAdapter
       filePath: pathStr,
       userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.storageFs,
+
       pathParams: routeParams,
       author,
     });
@@ -487,7 +465,7 @@ export class CompositeSubFsAdapter
       filePath: pathStr,
       userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.storageFs,
+
       pathParams: routeParams,
       author,
     });
@@ -542,63 +520,32 @@ export class CompositeSubFsAdapter
       throw new Error('Invalid file handle');
     }
 
-    // // TODO return an empty file if it was just created
-
-    // if (openFh.openSha === undefined) {
-    //   if (fileFromGit === undefined) {
-    //     // file didn't extist on open and still doesnt exist
-    //     return await openFh.fh.read(buffer, offset, length, position);
-    //   } else {
-    //     // file didn't exist on open but does now?
-    //     // 1. file was written in the meantime
-    //     // 2. same file was created in the meantime - via pull?
-    //   }
-    // } else if (openFh.openSha === fileFromGit?.oid) {
-    //   // git hasn't changed yet
-    //   if (openFh.readSha === undefined) {
-    //     // TODO realize the file and return it
-    //   } else if (openFh.readSha === fileFromGit?.oid) {
-    //     // cool - use the cache
-    //     return await openFh.fh.read(buffer, offset, length, position);
-    //   } else {
-    //     // ok the file has changed in git
-    //     if (openFh.unflushed.length > 0) {
-    //       // writes have taken place but also changes in git appeared
-    //       // TODO what to return?
-    //       // Option A: the curent written file from cache - flush will win
-    //       // Option B: the state from git -> unflushed changes gonna loose
-    //       // Option C: merge the state from git with the unflushed changes?
-    //     } else {
-    //     }
-    //   }
-    // }
-
     // if there is no unflushed change - read the object directly from git
     if (openFh.unflushed.length === 0) {
       const routeParams = this.getRouteParams();
       const author = await this.getAuthor();
-      const fileFromGit = await this.handler.getFile({
+      const fileFromHandler = await this.handler.getFile({
         cacheFs: this.memFs,
         filePath: openFh.path,
         userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
-        nodeFs: this.storageFs,
+
         pathParams: routeParams,
         author,
       });
 
-      if (!fileFromGit?.content) {
+      if (!fileFromHandler?.content) {
         throw new Error('couldnt access content');
       }
 
-      if (fileFromGit.type !== 'file') {
+      if (fileFromHandler.type !== 'file') {
         throw new Error('not a file');
       }
 
       const contentBuffer =
-        typeof fileFromGit.content === 'string'
-          ? Buffer.from(fileFromGit.content)
-          : fileFromGit.content;
+        typeof fileFromHandler.content === 'string'
+          ? Buffer.from(fileFromHandler.content)
+          : fileFromHandler.content;
       const start = typeof position === 'number' ? position : 0;
       const end = Math.min(start + length, contentBuffer.length);
       const bytesToRead = Math.max(0, end - start);
@@ -660,7 +607,7 @@ export class CompositeSubFsAdapter
         filePath: openFh!.path,
         userSpaceFs: this.compositeFs,
         gitRoot: this.gitRoot,
-        nodeFs: this.storageFs,
+
         pathParams: routeParams,
         author: author,
       });
@@ -727,7 +674,7 @@ export class CompositeSubFsAdapter
           filePath: openFh.path,
           userSpaceFs: this.compositeFs,
           gitRoot: this.gitRoot,
-          nodeFs: this.storageFs,
+
           content: content,
           pathParams: routeParams,
           author: author,
@@ -901,7 +848,7 @@ export class CompositeSubFsAdapter
       filePath: oldPathStr,
       userSpaceFs: this.compositeFs,
       gitRoot: this.gitRoot,
-      nodeFs: this.storageFs,
+
       newPath: newPathStr,
       pathParams: routeParams,
       newPathParams: this.newContext?.params || {}, // TODO: Extract new path params
@@ -933,8 +880,8 @@ export class CompositeSubFsAdapter
         cacheFs: this.memFs,
         filePath: pathStr,
         userSpaceFs: this.compositeFs,
-        nodeFs: this.storageFs,
         gitRoot: this.gitRoot,
+
         pathParams: routeParams,
         author,
       });
@@ -977,8 +924,8 @@ export class CompositeSubFsAdapter
       cacheFs: this.memFs,
       filePath: pathStr,
       userSpaceFs: this.compositeFs,
-      nodeFs: this.storageFs,
       gitRoot: this.gitRoot,
+
       pathParams: routeParams,
       author,
     });

@@ -41,10 +41,11 @@ export function createLegitVirtualFileAdapter({
     handler: {
       type: 'legitVirtualFile',
       rootType: 'folder',
-      getStats: async ({ gitRoot, nodeFs }) => {
+      getStats: async (args) => {
+        const { gitRoot } = args;
         const gitDir = gitRoot + '/' + '.git';
         try {
-          const gitStats = await nodeFs.promises.stat(gitDir);
+          const gitStats = await gitStorageFs.promises.stat(gitDir);
           return gitStats;
         } catch (err) {
           // If .git does not exist, propagate as ENOENT
@@ -52,7 +53,7 @@ export function createLegitVirtualFileAdapter({
         }
       },
 
-      getFile: async ({ gitRoot, nodeFs }) => {
+      getFile: async (args) => {
         return {
           type: 'directory',
           content: [],

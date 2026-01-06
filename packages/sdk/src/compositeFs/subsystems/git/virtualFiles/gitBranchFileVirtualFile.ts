@@ -147,21 +147,15 @@ export function createBranchFileAdapter({
       type: 'gitBranchFileVirtualFile',
       rootType: 'folder',
 
-      getStats: async ({
-        gitRoot,
-        nodeFs,
-        filePath,
-        cacheFs,
-        pathParams,
-        userSpaceFs,
-      }) => {
+      getStats: async args => {
+        const { gitRoot, filePath, pathParams, userSpaceFs } = args;
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         // read the stats from the current file
         let branchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -178,7 +172,8 @@ export function createBranchFileAdapter({
         const fileOrFolder = await resolveGitObjAtPath({
           filePath,
           gitRoot,
-          nodeFs,
+
+          nodeFs: gitStorageFs,
           commitSha: branchCommit,
           pathParams,
           gitCache: getGitCacheFromFs(userSpaceFs),
@@ -192,14 +187,14 @@ export function createBranchFileAdapter({
         }
 
         const commit = await git.readCommit({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: branchCommit,
         });
         const { commit: commitObj } = commit;
 
         const lastCommitForPath = await git.log({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           ref: branchCommit,
           filepath: pathParams.filePath,
@@ -247,7 +242,7 @@ export function createBranchFileAdapter({
           // NOTE we could extract the size by only reading the header from loose object https://github.com/isomorphic-git/isomorphic-git/blob/main/src/models/GitObject.js#L15
           // or the length from pack file https://git-scm.com/docs/pack-format
           const { blob } = await git.readBlob({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             oid: fileOrFolder.oid,
           });
@@ -283,21 +278,15 @@ export function createBranchFileAdapter({
           } as any;
         }
       },
-      getFile: async ({
-        filePath,
-        gitRoot,
-        nodeFs,
-        cacheFs,
-        pathParams,
-        userSpaceFs,
-      }) => {
+      getFile: async args => {
+        const { filePath, gitRoot, cacheFs, pathParams, userSpaceFs } = args;
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         try {
           let branchCommit = await tryResolveRef(
-            nodeFs,
+            gitStorageFs,
             gitRoot,
             pathParams.branchName
           );
@@ -305,20 +294,20 @@ export function createBranchFileAdapter({
           if (!branchCommit) {
             // Get the current branch/HEAD to use as base for new branch
             const currentHead = await git.resolveRef({
-              fs: nodeFs,
+              fs: gitStorageFs,
               dir: gitRoot,
               ref: 'HEAD',
             });
 
             await git.branch({
-              fs: nodeFs,
+              fs: gitStorageFs,
               dir: gitRoot,
               ref: pathParams.branchName,
               object: currentHead,
             });
 
             branchCommit = await tryResolveRef(
-              nodeFs,
+              gitStorageFs,
               gitRoot,
               pathParams.branchName
             );
@@ -330,7 +319,8 @@ export function createBranchFileAdapter({
           const fileOrFolder = await resolveGitObjAtPath({
             filePath,
             gitRoot,
-            nodeFs,
+
+            nodeFs: gitStorageFs,
             commitSha: branchCommit,
             pathParams,
             gitCache: getGitCacheFromFs(userSpaceFs),
@@ -342,7 +332,7 @@ export function createBranchFileAdapter({
 
           if (fileOrFolder.type === 'blob') {
             const { blob } = await git.readBlob({
-              fs: nodeFs,
+              fs: gitStorageFs,
               dir: gitRoot,
               oid: fileOrFolder.oid,
             });
@@ -393,16 +383,10 @@ export function createBranchFileAdapter({
       },
 
       // TODO move to vfile
-      unlink: async ({
-        filePath,
-        gitRoot,
-        nodeFs,
-        cacheFs,
-        pathParams,
-        author,
-      }) => {
+      unlink: async args => {
+        const { filePath, gitRoot, cacheFs, pathParams, author } = args;
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         if (!pathParams.filePath) {
@@ -410,7 +394,7 @@ export function createBranchFileAdapter({
         }
         // Get current branch commit
         const branchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -419,7 +403,7 @@ export function createBranchFileAdapter({
         }
         // Read current tree
         const currentTree = await git.readTree({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: branchCommit,
         });
@@ -427,7 +411,7 @@ export function createBranchFileAdapter({
         // Build new tree without the file
         const newTreeOid = await buildUpdatedTree({
           dir: gitRoot,
-          fs: nodeFs,
+          fs: gitStorageFs,
           treeOid: currentTree.oid,
           deletePathParts: pathParams.filePath.split('/'),
           addPathParts: undefined,
@@ -440,7 +424,7 @@ export function createBranchFileAdapter({
         // Create commit if tree changed
         if (newTreeOid !== currentTree.oid) {
           const newCommitOid = await git.commit({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             message: `Delete ${pathParams.filePath}`,
             tree: newTreeOid,
@@ -451,7 +435,7 @@ export function createBranchFileAdapter({
 
           // Update branch reference
           await git.writeRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: `refs/heads/${decodeBranchNameFromVfs(pathParams.branchName)}`,
             value: newCommitOid,
@@ -460,18 +444,12 @@ export function createBranchFileAdapter({
         }
       },
 
-      writeFile: async ({
-        filePath,
-        gitRoot,
-        nodeFs,
-        content,
-        cacheFs,
-        pathParams,
-        author,
-      }) => {
+      writeFile: async args => {
+        const { filePath, gitRoot, content, cacheFs, pathParams, author } =
+          args;
         // Parse the path to get branch name and file path
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         if (pathParams.filePath === undefined) {
@@ -488,14 +466,14 @@ export function createBranchFileAdapter({
 
         // Step 1: Create the OID of the content hash
         const newOid = await git.writeBlob({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           blob: blob,
         });
 
         // Step 2: Get the current branch commit
         let branchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -503,20 +481,20 @@ export function createBranchFileAdapter({
         if (!branchCommit) {
           // Get the current branch/HEAD to use as base for new branch
           const currentHead = await git.resolveRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: 'HEAD',
           });
 
           // Create branch if it doesn't exist
           await git.branch({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: decodeBranchNameFromVfs(pathParams.branchName),
             object: currentHead,
           });
           branchCommit = await tryResolveRef(
-            nodeFs,
+            gitStorageFs,
             gitRoot,
             pathParams.branchName
           );
@@ -527,14 +505,14 @@ export function createBranchFileAdapter({
 
         // read tree also accepts a git commit - it will resolve the tree within the commit
         const currentTree = await git.readTree({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: branchCommit,
         });
 
         const newTreeOid = await buildUpdatedTree({
           dir: gitRoot,
-          fs: nodeFs,
+          fs: gitStorageFs,
           treeOid: currentTree.oid,
           deletePathParts: undefined,
           addPathParts: pathParams.filePath.split('/'),
@@ -547,7 +525,7 @@ export function createBranchFileAdapter({
         if (newTreeOid !== currentTree.oid) {
           // Step 5: Create a new commit
           const newCommitOid = await git.commit({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             message: `💾 Change '${pathParams.filePath}'`,
             tree: newTreeOid,
@@ -558,7 +536,7 @@ export function createBranchFileAdapter({
 
           // Update the branch reference
           await git.writeRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: `refs/heads/${decodeBranchNameFromVfs(pathParams.branchName)}`,
             value: newCommitOid,
@@ -566,7 +544,7 @@ export function createBranchFileAdapter({
           });
 
           const newBranchCommit = await tryResolveRef(
-            nodeFs,
+            gitStorageFs,
             gitRoot,
             pathParams.branchName
           );
@@ -583,27 +561,30 @@ export function createBranchFileAdapter({
         // }
       },
 
-      rename: async function ({
-        filePath,
-        newPath,
-        gitRoot,
-        nodeFs,
-        pathParams,
-        newPathParams,
-        author,
-        userSpaceFs,
-      }): Promise<void> {
+      rename: async function (args): Promise<void> {
+        const {
+          filePath,
+          newPath,
+          gitRoot,
+          pathParams,
+          newPathParams,
+          author,
+          userSpaceFs,
+        } = args;
         // Parse the path to get branch name and file path
 
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
         if (pathParams.filePath === undefined) {
           throw new Error('filePath should be in pathParams');
         }
 
         if (newPathParams.branchName === undefined) {
-          newPathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          newPathParams.branchName = await getCurrentBranch(
+            gitRoot,
+            gitStorageFs
+          );
         }
 
         if (newPathParams.filePath === undefined) {
@@ -612,7 +593,7 @@ export function createBranchFileAdapter({
 
         // Step 2: Get the current branch commit
         const oldBranchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -624,7 +605,7 @@ export function createBranchFileAdapter({
         }
 
         let currentBranchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           newPathParams.branchName
         );
@@ -632,20 +613,20 @@ export function createBranchFileAdapter({
         if (!currentBranchCommit) {
           // Get the current branch/HEAD to use as base for new branch
           const currentHead = await git.resolveRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: 'HEAD',
           });
 
           // Create branch if it doesn't exist
           await git.branch({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: decodeBranchNameFromVfs(newPathParams.branchName),
             object: currentHead,
           });
           currentBranchCommit = await tryResolveRef(
-            nodeFs,
+            gitStorageFs,
             gitRoot,
             newPathParams.branchName
           );
@@ -661,7 +642,8 @@ export function createBranchFileAdapter({
 
         const existingAtOldPath = await resolveGitObjAtPath({
           gitRoot: gitRoot,
-          nodeFs: nodeFs,
+
+          nodeFs: gitStorageFs,
           commitSha: oldBranchCommit,
           filePath: filePath,
           pathParams: pathParams,
@@ -674,7 +656,7 @@ export function createBranchFileAdapter({
 
         const newTreeOid = await buildUpdatedTree({
           dir: gitRoot,
-          fs: nodeFs,
+          fs: gitStorageFs,
           deletePathParts: pathParams.filePath.split('/'),
           addPathParts: newPathParams.filePath.split('/'),
           addObj:
@@ -693,7 +675,7 @@ export function createBranchFileAdapter({
         });
 
         const currentTree = await git.readTree({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: oldBranchCommit,
         });
@@ -701,7 +683,7 @@ export function createBranchFileAdapter({
         if (newTreeOid !== currentTree.oid) {
           // Step 5: Create a new commit
           const newCommitOid = await git.commit({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             message: `🔀 Rename '${pathParams.filePath}' to '${newPathParams.filePath}'`,
             tree: newTreeOid,
@@ -712,7 +694,7 @@ export function createBranchFileAdapter({
 
           // Update the branch reference
           await git.writeRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: `refs/heads/${decodeBranchNameFromVfs(newPathParams.branchName)}`,
             value: newCommitOid,
@@ -730,13 +712,13 @@ export function createBranchFileAdapter({
         if (args.pathParams.branchName === undefined) {
           args.pathParams.branchName = await getCurrentBranch(
             args.gitRoot,
-            args.nodeFs
+            gitStorageFs
           );
           // throw new Error('branchName should be in pathParams');
         }
 
         let branchCommit = await tryResolveRef(
-          args.nodeFs,
+          gitStorageFs,
           args.gitRoot,
           args.pathParams.branchName
         );
@@ -769,20 +751,20 @@ export function createBranchFileAdapter({
         if (!branchCommit) {
           // Get the current branch/HEAD to use as base for new branch
           const currentHead = await git.resolveRef({
-            fs: args.nodeFs,
+            fs: gitStorageFs,
             dir: args.gitRoot,
             ref: 'HEAD',
           });
 
           // Create branch if it doesn't exist
           await git.branch({
-            fs: args.nodeFs,
+            fs: gitStorageFs,
             dir: args.gitRoot,
             ref: decodeBranchNameFromVfs(args.pathParams.branchName),
             object: currentHead,
           });
           branchCommit = await tryResolveRef(
-            args.nodeFs,
+            gitStorageFs,
             args.gitRoot,
             args.pathParams.branchName
           );
@@ -794,21 +776,21 @@ export function createBranchFileAdapter({
 
         // read tree also accepts a git commit - it will resolve the tree within the commit
         const currentTree = await git.readTree({
-          fs: args.nodeFs,
+          fs: gitStorageFs,
           dir: args.gitRoot,
           oid: branchCommit,
         });
 
         const emptyBlob = new Uint8Array(0);
         const keepOid = await git.writeBlob({
-          fs: args.nodeFs,
+          fs: gitStorageFs,
           dir: args.gitRoot,
           blob: emptyBlob,
         });
 
         const newTreeOid = await buildUpdatedTree({
           dir: args.gitRoot,
-          fs: args.nodeFs,
+          fs: gitStorageFs,
           treeOid: currentTree.oid,
           deletePathParts: undefined,
           addPathParts: [...args.pathParams.filePath.split('/'), '.keep'],
@@ -824,7 +806,7 @@ export function createBranchFileAdapter({
         if (newTreeOid !== currentTree.oid) {
           // Step 5: Create a new commit
           const newCommitOid = await git.commit({
-            fs: args.nodeFs,
+            fs: gitStorageFs,
             dir: args.gitRoot,
             message: `💾 Change '${args.pathParams.filePath}'`,
             tree: newTreeOid,
@@ -835,7 +817,7 @@ export function createBranchFileAdapter({
 
           // Update the branch reference
           await git.writeRef({
-            fs: args.nodeFs,
+            fs: gitStorageFs,
             dir: args.gitRoot,
             ref: `refs/heads/${decodeBranchNameFromVfs(args.pathParams.branchName)}`,
             value: newCommitOid,
@@ -844,16 +826,10 @@ export function createBranchFileAdapter({
         }
       },
 
-      rmdir: async ({
-        filePath,
-        gitRoot,
-        nodeFs,
-        cacheFs,
-        pathParams,
-        author,
-      }) => {
+      rmdir: async args => {
+        const { filePath, gitRoot, cacheFs, pathParams, author } = args;
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
           // throw new Error('branchName should be in pathParams');
         }
 
@@ -862,7 +838,7 @@ export function createBranchFileAdapter({
         }
         // Get current branch commit
         const branchCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -873,7 +849,7 @@ export function createBranchFileAdapter({
 
         // Read current tree
         const currentTree = await git.readTree({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: branchCommit,
         });
@@ -881,7 +857,7 @@ export function createBranchFileAdapter({
         // Build new tree without the file
         const newTreeOid = await buildUpdatedTree({
           dir: gitRoot,
-          fs: nodeFs,
+          fs: gitStorageFs,
           treeOid: currentTree.oid,
           deletePathParts: pathParams.filePath.split('/'),
           addPathParts: undefined,
@@ -894,7 +870,7 @@ export function createBranchFileAdapter({
         // Create commit if tree changed
         if (newTreeOid !== currentTree.oid) {
           const newCommitOid = await git.commit({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             message: `Delete ${pathParams.filePath}`,
             tree: newTreeOid,
@@ -905,7 +881,7 @@ export function createBranchFileAdapter({
 
           // Update branch reference
           await git.writeRef({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             ref: `refs/heads/${decodeBranchNameFromVfs(pathParams.branchName)}`,
             value: newCommitOid,

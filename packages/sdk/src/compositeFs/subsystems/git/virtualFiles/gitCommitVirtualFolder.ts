@@ -40,15 +40,16 @@ export function createCommitFolderAdapter({
     // TODO use the commit where the file was changed last as base
     const gitDir = args.gitRoot + '/' + '.git';
     try {
-      const gitStats = await args.nodeFs.promises.stat(gitDir);
+      const gitStats = await gitStorageFs.promises.stat(gitDir);
       return gitStats;
     } catch (err) {
       // If .git does not exist, propagate as ENOENT
       throw new Error(`ENOENT: no such file or directory, stat '${gitDir}'`);
     }
   },
-  getFile: async ({ filePath, gitRoot, nodeFs, pathParams }) => {
-    const branchNames = await git.listBranches({ fs: nodeFs, dir: gitRoot });
+  getFile: async (args) => {
+    const { filePath, gitRoot, pathParams } = args;
+    const branchNames = await git.listBranches({ fs: gitStorageFs, dir: gitRoot });
     const headCommits = new Set<string>();
     const commits = new Set<string>();
 
@@ -56,7 +57,7 @@ export function createCommitFolderAdapter({
       const ref = `refs/heads/${branch}`;
       try {
         const commitOid = await git.resolveRef({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           ref,
         });
@@ -68,7 +69,7 @@ export function createCommitFolderAdapter({
 
     for (const headCommit of headCommits) {
       const commitsFromHead = await git.log({
-        fs: nodeFs,
+        fs: gitStorageFs,
         dir: gitRoot,
         ref: headCommit,
       });

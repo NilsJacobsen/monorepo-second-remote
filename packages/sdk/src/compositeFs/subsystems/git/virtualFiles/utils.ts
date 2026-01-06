@@ -40,8 +40,7 @@ function getGitCacheFromFs(fs: any): any {
 export async function tryResolveRef(
   fs: FsClient,
   gitRoot: string,
-  refName: string,
-  gitCache?: any
+  refName: string
 ) {
   try {
     const branchCommit = await git.resolveRef({
@@ -656,9 +655,10 @@ export async function resolveGitObjAtPath({
   commitSha,
   pathParams,
   gitCache,
-}: Pick<VirtualFileArgs, 'filePath' | 'gitRoot' | 'nodeFs' | 'pathParams'> & {
+}: Pick<VirtualFileArgs, 'filePath' | 'gitRoot' | 'pathParams'> & {
   commitSha: string;
   gitCache: any;
+  nodeFs: any;
 }): Promise<
   | { type: 'tree'; oid: string; entries: IDirent[] }
   | { type: 'blob'; oid: string }
@@ -772,9 +772,10 @@ export async function resolveGitObjAtPathFromArgs({
   commitSha,
   pathParams,
   args,
-}: Pick<VirtualFileArgs, 'filePath' | 'gitRoot' | 'nodeFs' | 'pathParams'> & {
+}: Pick<VirtualFileArgs, 'filePath' | 'gitRoot' | 'pathParams'> & {
   commitSha: string;
   args: VirtualFileArgs;
+  nodeFs: any;
 }): Promise<
   | { type: 'tree'; oid: string; entries: IDirent[] }
   | { type: 'blob'; oid: string }

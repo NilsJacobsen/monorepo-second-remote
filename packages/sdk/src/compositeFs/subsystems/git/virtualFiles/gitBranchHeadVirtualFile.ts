@@ -60,13 +60,13 @@ export function createBranchHeadAdapter({
       type: 'gitBranchHeadVirtualFile',
       rootType: 'file',
 
-      getStats: async ({ gitRoot, nodeFs, pathParams, userSpaceFs }) => {
+      getStats: async ({ gitRoot, pathParams, userSpaceFs }) => {
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         let headCommit = await tryResolveRef(
-          nodeFs,
+          gitStorageFs,
           gitRoot,
           pathParams.branchName
         );
@@ -77,7 +77,7 @@ export function createBranchHeadAdapter({
         }
 
         const commit = await git.readCommit({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           oid: headCommit,
           cache: getGitCacheFromFs(userSpaceFs),
@@ -117,9 +117,9 @@ export function createBranchHeadAdapter({
         } as any;
       },
 
-      getFile: async ({ gitRoot, nodeFs, pathParams, userSpaceFs }) => {
+      getFile: async ({ gitRoot, pathParams, userSpaceFs }) => {
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         try {
@@ -127,13 +127,13 @@ export function createBranchHeadAdapter({
 
           try {
             headCommit = await git.resolveRef({
-              fs: nodeFs,
+              fs: gitStorageFs,
               dir: gitRoot,
               ref: pathParams.branchName,
             });
           } catch {
             headCommit = await git.resolveRef({
-              fs: nodeFs,
+              fs: gitStorageFs,
               dir: gitRoot,
               ref: `refs/heads/${pathParams.branchName}`,
             });
@@ -153,14 +153,13 @@ export function createBranchHeadAdapter({
       writeFile: async ({
         filePath,
         gitRoot,
-        nodeFs,
         content,
         cacheFs,
         pathParams,
         userSpaceFs,
       }) => {
         if (pathParams.branchName === undefined) {
-          pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+          pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
         }
 
         const newHead = content.toString().trim();
@@ -168,7 +167,7 @@ export function createBranchHeadAdapter({
         // Check if the new head commit exists
         try {
           await git.readCommit({
-            fs: nodeFs,
+            fs: gitStorageFs,
             dir: gitRoot,
             oid: newHead,
             cache: getGitCacheFromFs(userSpaceFs),
@@ -178,7 +177,7 @@ export function createBranchHeadAdapter({
         }
 
         await git.writeRef({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           ref: 'refs/heads/' + pathParams.branchName,
           value: newHead,

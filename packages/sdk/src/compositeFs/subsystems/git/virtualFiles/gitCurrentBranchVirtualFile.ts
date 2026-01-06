@@ -38,8 +38,9 @@ export function createCurrentBranchAdapter({
       type: 'gitCurrentBranchVirtualFile',
       rootType: 'file',
 
-  getStats: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getCurrentBranch(gitRoot, nodeFs);
+  getStats: async (args) => {
+    const { gitRoot } = args;
+    const branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     const size = branchName.length;
 
     return {
@@ -73,8 +74,9 @@ export function createCurrentBranchAdapter({
     } as any;
   },
 
-  getFile: async ({ gitRoot, nodeFs }) => {
-    const branchName = await getCurrentBranch(gitRoot, nodeFs);
+  getFile: async (args) => {
+    const { gitRoot } = args;
+    const branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     return {
       type: 'file',
       content: branchName + '\n',
@@ -83,17 +85,18 @@ export function createCurrentBranchAdapter({
     };
   },
 
-  writeFile: async ({ gitRoot, nodeFs, content }) => {
+  writeFile: async (args) => {
+    const { gitRoot, content } = args;
     const newBranchName = content.toString().trim();
 
     // Check that the branch exists before setting it
 
-    const ref = await tryResolveRef(nodeFs, gitRoot, newBranchName);
+    const ref = await tryResolveRef(gitStorageFs, gitRoot, newBranchName);
     if (!ref) {
-      const sourceBranch = await getReferenceBranch(gitRoot, nodeFs);
+      const sourceBranch = await getReferenceBranch(gitRoot, gitStorageFs);
 
       const sourceBranchRef = await tryResolveRef(
-        nodeFs,
+        gitStorageFs,
         gitRoot,
         sourceBranch
       );
@@ -104,7 +107,7 @@ export function createCurrentBranchAdapter({
         );
       }
       await git.branch({
-        fs: nodeFs,
+        fs: gitStorageFs,
         dir: gitRoot,
         ref: decodeBranchNameFromVfs(newBranchName),
         object: sourceBranchRef,
@@ -112,7 +115,7 @@ export function createCurrentBranchAdapter({
     }
 
     // Use setCurrentBranch to set the new branch
-    await setCurrentBranch(gitRoot, nodeFs, newBranchName);
+    await setCurrentBranch(gitRoot, gitStorageFs, newBranchName);
   },
 
   rename(args) {

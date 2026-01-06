@@ -40,13 +40,14 @@ export function createBranchOperationHeadAdapter({
       type: 'gitBranchOperationHeadVirtualFile',
       rootType: 'file',
 
-  getStats: async ({ gitRoot, nodeFs, pathParams }) => {
+  getStats: async (args) => {
+    const { gitRoot, pathParams } = args;
     if (pathParams.branchName === undefined) {
-      pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+      pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     }
 
     let operationBranchName = await resolveOperationBranchName(
-      nodeFs,
+      gitStorageFs,
       gitRoot,
       pathParams.branchName
     );
@@ -89,20 +90,20 @@ export function createBranchOperationHeadAdapter({
 
     try {
       headCommit = await git.resolveRef({
-        fs: nodeFs,
+        fs: gitStorageFs,
         dir: gitRoot,
         ref: operationBranchName!,
       });
     } catch {
       headCommit = await git.resolveRef({
-        fs: nodeFs,
+        fs: gitStorageFs,
         dir: gitRoot,
         ref: `refs/heads/${operationBranchName}`,
       });
     }
 
     const commit = await git.readCommit({
-      fs: nodeFs,
+      fs: gitStorageFs,
       dir: gitRoot,
       oid: headCommit,
     });
@@ -141,13 +142,14 @@ export function createBranchOperationHeadAdapter({
     } as any;
   },
 
-  getFile: async ({ gitRoot, nodeFs, pathParams }) => {
+  getFile: async (args) => {
+    const { gitRoot, pathParams } = args;
     if (pathParams.branchName === undefined) {
-      pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+      pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     }
 
     let operationBranchName = await resolveOperationBranchName(
-      nodeFs,
+      gitStorageFs,
       gitRoot,
       pathParams.branchName
     );
@@ -165,13 +167,13 @@ export function createBranchOperationHeadAdapter({
 
       try {
         headCommit = await git.resolveRef({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           ref: operationBranchName,
         });
       } catch {
         headCommit = await git.resolveRef({
-          fs: nodeFs,
+          fs: gitStorageFs,
           dir: gitRoot,
           ref: `refs/heads/${operationBranchName}`,
         });
@@ -188,20 +190,14 @@ export function createBranchOperationHeadAdapter({
     }
   },
 
-  writeFile: async ({
-    filePath,
-    gitRoot,
-    nodeFs,
-    content,
-    cacheFs,
-    pathParams,
-  }) => {
+  writeFile: async (args) => {
+    const { gitRoot, content, pathParams } = args;
     if (pathParams.branchName === undefined) {
-      pathParams.branchName = await getCurrentBranch(gitRoot, nodeFs);
+      pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);
     }
 
     let operationBranchName = await resolveOperationBranchName(
-      nodeFs,
+      gitStorageFs,
       gitRoot,
       pathParams.branchName
     );
@@ -214,7 +210,7 @@ export function createBranchOperationHeadAdapter({
     }
 
     const operationBranchRef = await tryResolveRef(
-      nodeFs,
+      gitStorageFs,
       gitRoot,
       operationBranchName
     );
@@ -233,7 +229,7 @@ export function createBranchOperationHeadAdapter({
 
     let oid: string | null = operationBranchRef;
     while (oid && !isFirstOperation) {
-      const commit = await git.readCommit({ fs: nodeFs, dir: gitRoot, oid });
+      const commit = await git.readCommit({ fs: gitStorageFs, dir: gitRoot, oid });
 
       if (commit.oid === requestedOperationBranchHead) {
         newOperationBranchHead = commit.oid;
@@ -270,7 +266,7 @@ export function createBranchOperationHeadAdapter({
     }
 
     await git.writeRef({
-      fs: nodeFs,
+      fs: gitStorageFs,
       dir: gitRoot,
       ref: 'refs/heads/' + operationBranchName,
       value: newOperationBranchHead,
@@ -278,7 +274,7 @@ export function createBranchOperationHeadAdapter({
     });
 
     await git.writeRef({
-      fs: nodeFs,
+      fs: gitStorageFs,
       dir: gitRoot,
       ref: 'refs/heads/' + pathParams.branchName,
       value: newBranchHead,
