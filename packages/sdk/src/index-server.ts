@@ -6,6 +6,7 @@ export * from './compositeFs/subsystems/HiddenFileSubFs.js';
 export * from './compositeFs/subsystems/EphemeralFileSubFs.js';
 export * from './compositeFs/subsystems/CopyOnWriteSubFs.js';
 export * from './compositeFs/subsystems/PassThroughSubFs.js';
+export * from './compositeFs/subsystems/CompositeSubFsAdapter.js';
 
 export * from './compositeFs/subsystems/git/virtualFiles/operations/gitBranchOperationsVirtualFile.js';
 export * from './legitfs.js';
