@@ -564,7 +564,6 @@ export function createBranchFileAdapter({
         const {
           filePath,
           newPath,
-
           pathParams,
           newPathParams,
           author,

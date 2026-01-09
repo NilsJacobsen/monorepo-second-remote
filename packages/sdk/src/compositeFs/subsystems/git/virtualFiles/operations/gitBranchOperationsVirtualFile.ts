@@ -1,18 +1,6 @@
 import git from '@legit-sdk/isomorphic-git';
-import {
-  tryResolveRef,
-  resolveGitObjAtPath,
-  buildUpdatedTree,
-} from '../utils.js';
-import { VirtualFileArgs, VirtualFileDefinition } from '../gitVirtualFiles.js';
 
-import { ENOENTError } from '../../../../errors/ENOENTError.js';
-import * as nodeFs from 'node:fs';
-import { CompositeFs } from '../../../../CompositeFs.js';
-import {
-  resolveOperationBranchName,
-  operationBranchNamePostfix,
-} from './resolveOperationBranchName.js';
+import { resolveOperationBranchName } from './resolveOperationBranchName.js';
 import { getCurrentBranch } from '../getCurrentBranch.js';
 import { CompositeSubFsAdapter } from '../../../CompositeSubFsAdapter.js';
 
@@ -193,7 +181,7 @@ export function createBranchOperationsAdapter({
     },
 
     getFile: async args => {
-      const {  pathParams } = args;
+      const { pathParams } = args;
 
       if (pathParams.branchName === undefined) {
         pathParams.branchName = await getCurrentBranch(gitRoot, gitStorageFs);

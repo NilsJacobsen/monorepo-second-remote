@@ -30,7 +30,7 @@ import { CompositeSubFs } from './compositeFs/CompositeSubFs.js';
 import {
   LegitRouteFolder,
   PathRouteDescription,
-} from './compositeFs/PathRouter.js';
+} from './compositeFs/subsystems/file-path-routing-fs/router/PathRouter.js';
 
 function isLegitRouteFolder(
   value: PathRouteDescription | undefined
@@ -375,7 +375,9 @@ export async function openLegitFs({
     },
   };
 
-  const routes = routeOverrides ? mergeLegitRouteFolders(routeConfig, routeOverrides) : routeConfig;
+  const routes = routeOverrides
+    ? mergeLegitRouteFolders(routeConfig, routeOverrides)
+    : routeConfig;
 
   const userSpaceFs = new CompositeFs({
     name: 'git',
