@@ -26,7 +26,7 @@ import type {
 import { BaseCompositeSubFs } from './BaseCompositeSubFs.js';
 import * as nodeFs from 'node:fs';
 import { VirtualFileDefinition } from './git/virtualFiles/gitVirtualFiles.js';
-import { toDirEntry } from './git/virtualFiles/utils.js';
+import { toDirEntry } from '../utils/toDirEntry.js';
 
 /**
  * CompositeSubFsAdapter - Adapts a virtual file handler to work as a SubFS

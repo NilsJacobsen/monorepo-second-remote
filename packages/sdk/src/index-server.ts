@@ -16,3 +16,6 @@ export * from './sync/createLegitSyncService.js';
 export * from './compositeFs/subsystems/git/virtualFiles/types/HistoryItom.js';
 export * from './compositeFs/subsystems/git/virtualFiles/types/User.js';
 export * from './compositeFs/utils/fs-operation-logger.js';
+export * from './compositeFs/subsystems/simple/SimpleMemorySubFs.js';
+export * from './compositeFs/subsystems/simple/base-simple-sub-fs.js';
+export * from './compositeFs/utils/toDirEntry.js';

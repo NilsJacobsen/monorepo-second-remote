@@ -2,7 +2,7 @@ import git from '@legit-sdk/isomorphic-git';
 import { VirtualFileArgs, VirtualFileDefinition } from './gitVirtualFiles.js';
 
 import * as nodeFs from 'node:fs';
-import { toDirEntry } from './utils.js';
+import { toDirEntry } from '../../../utils/toDirEntry.js';
 import { encodeBranchNameForVfs } from './operations/nameEncoding.js';
 import { CompositeSubFsAdapter } from '../../CompositeSubFsAdapter.js';
 
