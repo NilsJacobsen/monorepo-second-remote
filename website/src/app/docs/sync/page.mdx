@@ -8,7 +8,9 @@ import { Callout } from 'nextra/components'
 # Sync
 
 <Callout type="error">
-  🧪 **Experimental** - Expect frequent changes
+  🧪 **Experimental** - Expect frequent changes. 
+  
+    If you need an API key and would like to try sync with GitHub, please contact us via Discord.
 </Callout>
 
 Sync in Legit FS allows you to synchronize your local branches with remote repositories. This enables collaboration, backup, and working across multiple devices. Sync operations use Git remotes under the hood, making it compatible with any Git server.
@@ -99,7 +101,7 @@ console.log('Branch loaded from remote')
 ```
 
 ### Load Branch Before Switching
-//TODO ist das wirklich so, dass es von Remote geladen wird, wenn es die nicht gibt locally und kann ich damit auch neue Branches erstellner, wenn es die weder Local noch remote gibt?
+{/* TODO: ist das wirklich so, dass es von Remote geladen wird, wenn es die nicht gibt locally und kann ich damit auch neue Branches erstellen, wenn es die weder local noch remote gibt? ähnliche Frage auch in der Branching.md*/}
 
 The `setCurrentBranch()` function automatically loads the branch if it doesn't exist:
 
