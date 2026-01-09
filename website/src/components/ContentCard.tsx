@@ -36,7 +36,7 @@ export function ContentCard({
       <div className="p-4 flex flex-col flex-grow">
         {(author || date) && (
           <div className="mb-2 text-xs text-gray-500">
-            {author && <span>by {author}</span>}
+            {author && <span> {author}</span>}
             {author && date && <span className="mx-1">•</span>}
             {date && <span>{date}</span>}
           </div>
