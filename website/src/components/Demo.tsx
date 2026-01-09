@@ -229,15 +229,17 @@ const DemoComponent = () => {
     history: HistoryItem[],
     mapping: { position: number; message: string }[]
   ) => {
-    return history.map((commit, index) => {
-      const reversedIndex = history.length - 1 - index;
-      const mappingItem: { position: number; message: string } | undefined =
-        mapping.find(m => m.position === reversedIndex);
-      return {
-        ...commit,
-        message: mappingItem?.message || commit.message,
-      };
-    });
+    return history
+      .map((commit, index) => {
+        const reversedIndex = history.length - 1 - index;
+        const mappingItem: { position: number; message: string } | undefined =
+          mapping.find(m => m.position === reversedIndex);
+        return {
+          ...commit,
+          message: mappingItem?.message || commit.message,
+        };
+      })
+      .filter(commit => commit.message !== 'Notes Machine Learning');
   };
 
   return (
@@ -347,9 +349,9 @@ const DemoComponent = () => {
                         ? agentHistory.slice(0, -2)
                         : [],
                       [
-                        { position: 0, message: '🤖 Add paragraphs' },
-                        { position: 1, message: '🤖 Improve voice' },
-                        { position: 2, message: '🤖 Add summary' },
+                        { position: 1, message: '🤖 Add paragraphs' },
+                        { position: 2, message: '🤖 Improve voice' },
+                        { position: 3, message: '🤖 Add summary' },
                       ]
                     ),
                     className: 'text-primary border-primary',
