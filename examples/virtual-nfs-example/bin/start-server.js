@@ -91,6 +91,18 @@ function startNfsServer(servePoint, port, logFile) {
       logWithTimestamp('Creating simple in-memory filesystem...');
       compositeFs = await createCompositeFs();
 
+      logWithTimestamp('Setting up periodic timestamp updates...');
+      setInterval(async () => {
+        try {
+          const now = new Date();
+          const timestamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}-${String(now.getHours()).padStart(2, '0')}-${String(now.getMinutes()).padStart(2, '0')}-${String(now.getSeconds()).padStart(2, '0')}-${String(now.getMilliseconds()).padStart(3, '0')}`;
+          await compositeFs.writeFile('/readme.md', timestamp, 'utf8');
+          console.log('readme updated');
+        } catch (error) {
+          logWithTimestamp(`Error updating timestamp: ${error.message}`, true);
+        }
+      }, 500);
+
       logWithTimestamp('Creating file handle manager...');
       const fhM = createFileHandleManager(
         '/',
