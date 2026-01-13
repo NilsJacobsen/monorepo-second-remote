@@ -48,6 +48,30 @@ The demo filesystem includes:
 
 ## Usage
 
+### Installation
+
+prequisite:
+
+this project uses pnpm as packagemanager. Its part of a monorepo with two dependencies from the monorepo:
+
+@legit-sdk/core
+@legit-sdk/nfs-serve
+
+to run the example - install the mono repo dependecies by executing
+
+```bash
+pnpm install
+```
+
+in the root directory.
+
+Build the two packages:
+
+```bash
+pnpm run --filter="@legit-sdk/core" build:dev
+pnpm run --filter="@legit-sdk/nfs-serve" build
+```
+
 ### Start the server (interactive mode)
 
 The server will start and keep running until you press Ctrl+C:
@@ -197,8 +221,7 @@ export async function createFromRealFs() {
   });
 }
 ```
-qww
-´
+
 ## Troubleshooting
 
 ### Port already in use
