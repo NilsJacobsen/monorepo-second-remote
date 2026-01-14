@@ -487,6 +487,31 @@ export async function openLegitFs({
       }
       return branch!;
     },
+
+    /**
+     * 
+     * This function takes a legit archive - earlier compressed with saveArchive and writes it to storage fs.
+     * 
+     * Refs that can be fast forwarded should get updeted - referecences that cannot be fast forwarded create a ref named branchname-conflict-uuid.
+     * New Refs should be added. (TODO how do we handle deleted refs to prevent them from coming back?)
+     * 
+     * The git config should get ignored for now
+     * 
+     * @param legitArchieve a zlib compressed legit repo
+     */
+    loadArchive: async (legitArchieve: Uint8Array): Promise<void> => {
+
+    }, 
+
+    /**
+     * creates a legit archieve - a compressed representation of the legit repo (the .git folder in the storage fs)
+     * 
+     * @returns 
+     */
+    saveArchive: async (): Promise<Uint8Array> => {
+      return new Uint8Array();
+    }
+
   });
 
   return legitfs;
