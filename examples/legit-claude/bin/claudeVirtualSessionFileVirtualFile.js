@@ -49,12 +49,10 @@ export function toDirEntry(args) {
  * # Claude legit flow:
  *  - start legit box
  *  - open the legit version of the repo folder
- *  - create a feature branch (to work on a feature / or main if you have the nuts)
+ *  - create a feature branch (to work on a feature / or main if you are nuts)
  *  - set the feature branch as the reference branch by writing to .legit/reference-branch
- *     -> TODO implement "reference-branch"
  *  - set current branch to "claude.[reference-branch]" by writing to .legit/current-branch
  *     -> this will take the reference branch tip to start the branch
- *        -> TODO implement the logic to branch of from reference branch
  *     -> this will give the agent the place to write
  *  - NOTE: for now you can have only one session per reference-branch
  *  - write hash from head to .legit/apply-changes - this should update the tree in reference branch with the changes from head
@@ -193,16 +191,6 @@ export function createClaudeVirtualSessionFileAdapter({
       },
       getFile: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
         const normalizedPath = filePath.replace(/\\/g, '/');
-        if (
-          normalizedPath.endsWith('.claude') ||
-          normalizedPath.endsWith('.claude/session_data') ||
-          normalizedPath.endsWith('.claude/session_data/projects') ||
-          normalizedPath.endsWith('.claude/session_data/debug') ||
-          /\.claude\/session_data\/projects\/[^/]+$/.test(normalizedPath)
-        ) {
-          await cacheFs.promises.mkdir(filePath, { recursive: true });
-        }
-
         if (normalizedPath.endsWith('.claude/settings.json')) {
           return {
             type: 'file',
@@ -213,6 +201,15 @@ export function createClaudeVirtualSessionFileAdapter({
           };
         }
 
+        if (
+          normalizedPath.endsWith('.claude') ||
+          normalizedPath.endsWith('.claude/session_data') ||
+          normalizedPath.endsWith('.claude/session_data/projects') ||
+          normalizedPath.endsWith('.claude/session_data/debug') ||
+          /\.claude\/session_data\/projects\/[^/]+$/.test(normalizedPath)
+        ) {
+          await cacheFs.promises.mkdir(filePath, { recursive: true });
+        }
         try {
           const stat = await cacheFs.promises.stat(filePath);
           if (stat.isFile()) {
@@ -464,9 +461,13 @@ export function createClaudeVirtualSessionFileAdapter({
   });
 
   adapter.responsible = async filePath => {
-    const normalizedPath = filePath
+    let normalizedPath = filePath
       .replace(/\\/g, '/')
       .replace(new RegExp(`^${gitRoot.replace(/\\/g, '/')}`), '');
+
+    if (gitRoot === '/') {
+      normalizedPath = '/' + normalizedPath;
+    }
     return normalizedPath.startsWith('/.claude');
   };
 
