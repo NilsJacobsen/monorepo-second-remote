@@ -376,9 +376,7 @@ export async function openLegitFs({
         },
       },
     },
-    '[[...filePath]]': {
-      '.': branchFileAdapter,
-    },
+    '[[...filePath]]': branchFileAdapter,
   };
 
   const routes = routeOverrides
