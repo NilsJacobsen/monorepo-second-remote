@@ -4,7 +4,7 @@ Legit Claude: Store Your AI Conversations Next to Your Code
 
 # The Pain - Background story - Motivation
 
-I lost my last position as Staff of Engeneering at Opral because of AI - kind of. 
+I lost my last position as Staff of Engeneering because of AI - kind of. 
 The Founder was based in New york while I was working from Berlin. 
 
 AI really gave a boost regarding throughput - but Timezone killed the productivety.
@@ -72,12 +72,21 @@ When you start a new session Legit creates three branches.
 Claude stores its sessions localy - usually under the folder `~/.claude/local` inside of jsonl files.
 Each line of the `jsonl` file represents an operation inside of claude - this can be a prompt by the user, a tool call or a response. The Location can be configured by changing `CLAUDE_CONFIG_DIR`.
 
-Now legit enters the game. When you start legit-claude it mounts a LegitFS (https://www.legitcontrol.com/docs/concepts/filesystem-api) based on the current Folder via NFS3. 
-By configuring claude (via CLAUDE_CONFIG_DIR) to write to a folder managed by LegitFS we control every read and write of claudes `jsonl` session files.
+This is legit comes into play:
 
-When claude write a new line to the session `jsonl` file legit adds a commit with Human friendly description followed by original payload of claude.
+When you start legit-claude it:
+1. spawnss an NFS serverm baked by legit fs LegitFS (https://www.legitcontrol.com/docs/concepts/filesystem-api) pointing to the current working directory (your project folder). 
+2. Mounts the legitfs bakeds nfs localy (current folder + -nfs) and 
+3. starts claude within the mounted folder
 
-When claude reads the session - for example to continue it, legit jusst projects the payload from the commits back into the session file. 
+By configuring claude (via CLAUDE_CONFIG_DIR) to write to a folder managed by LegitFS the virtual file system controls every read and write - also every fs operation on claudes `jsonl` session files.
+
+When claude write a new line to the session `jsonl` file it actually writes into a virtual file.
+You can think of it as a "web server that serves the file" - in this case via the filesytem.
+
+When claude add a new file to the session's jsonl we utilize legit's operation file to store that line as a commit in your git repo. 
+
+When claude reads the session - for example to continue it, legit just projects the payload from the commits back into the session file. 
 
 
 2. Conversational Commits

@@ -732,7 +732,7 @@ export const createAsyncNfsHandler = (args: {
           eof: true, // Indicates if we've sent all entries
         };
       } catch (err) {
-        console.error(`Error reading directory: ${err}`);
+        console.error(`Error reading directory:`, err);
         return {
           status: nfsstat3.ERR_IO,
         };

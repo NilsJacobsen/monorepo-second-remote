@@ -11,6 +11,18 @@ import * as net from 'net';
 
 import { exec } from 'child_process';
 import { Command } from 'commander';
+import { sessionDataPath } from './claudeVirtualSessionFileVirtualFile.js';
+
+const settingsContent = JSON.stringify(
+  {
+    env: { CLAUDE_CONFIG_DIR: sessionDataPath },
+    permissions: {
+      deny: ['Read(.legit/**)'],
+    },
+  },
+  null,
+  2
+);
 
 // Function to check if a port is available
 function isPortAvailable(port) {
@@ -66,13 +78,13 @@ function promptForCommitMessage() {
 
 function spawnSubProcess(cwd, cmd) {
   return new Promise((resolve, reject) => {
-    // console.log(`\nSpawn process process... ` + cmd + ' in ' + cwd);
+    // console.log(`\nSpawn process process... ` + cmd + ' in ' + cwd, `--settings="${settingsContent}"`);
 
     // Execute the command through shell (handles command parsing automatically)
-    const child = spawn(cmd, [], {
+    const child = spawn(cmd, ['--settings', settingsContent], {
       cwd: cwd,
       stdio: 'inherit',
-      shell: true,
+      shell: false,
     });
 
     child.on('close', code => {
@@ -326,11 +338,6 @@ async function main() {
   if (options.port === undefined) {
     options.port = await findAvailablePort(13617);
   }
-
-  // console.log('Repository path:', options.repoPath);
-  // console.log('Mount path:', options.mountPath);
-  // console.log('Port:', options.port);
-  // console.log('Should spawn:', options.spawn);
 
   let nfsServerProcess;
 

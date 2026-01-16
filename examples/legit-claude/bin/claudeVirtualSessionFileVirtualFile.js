@@ -1,15 +1,8 @@
 import { CompositeSubFsAdapter } from '@legit-sdk/core';
 import { currentBranch } from '@legit-sdk/isomorphic-git';
+import { createFsFromVolume, Volume } from 'memfs';
 
-const SESSION_DATA_PATH = 'session_data';
-
-const settingsContent = JSON.stringify(
-  {
-    env: { CLAUDE_CONFIG_DIR: `.claude/${SESSION_DATA_PATH}` },
-  },
-  null,
-  2
-);
+export const sessionDataPath = '.claude-session';
 
 /**
  * @param {{ name: any; parent: any; isDir: any; }} args
@@ -70,6 +63,11 @@ export function createClaudeVirtualSessionFileAdapter({
   gitRoot,
   rootPath,
 }) {
+  // Create isolated in-memory filesystem for Claude session files
+  // This prevents session data from polluting the shared cacheFs
+  const claudeVolume = Volume.fromJSON({});
+  const claudeMemFs = createFsFromVolume(claudeVolume);
+
   const adapter = new CompositeSubFsAdapter({
     name: 'claude-virtual-session-file',
     gitStorageFs,
@@ -83,13 +81,12 @@ export function createClaudeVirtualSessionFileAdapter({
         // Return folder stats for specific .claude paths regardless of cache
         const normalizedPath = filePath.replace(/\\/g, '/');
         if (
-          normalizedPath.endsWith('.claude') ||
-          normalizedPath.endsWith(`.claude/${SESSION_DATA_PATH}`) ||
-          normalizedPath.endsWith(`.claude/${SESSION_DATA_PATH}/debug`) ||
-          normalizedPath.endsWith(`.claude/${SESSION_DATA_PATH}/projects`) ||
-          new RegExp(
-            `\\.claude\\/${SESSION_DATA_PATH}\\/projects\\/[^/]+$`
-          ).test(normalizedPath)
+          normalizedPath.endsWith(`${sessionDataPath}`) ||
+          normalizedPath.endsWith(`${sessionDataPath}/projects`) ||
+          normalizedPath.endsWith(`${sessionDataPath}/debug`) ||
+          new RegExp(`${sessionDataPath}\\/projects\\/[^/]+$`).test(
+            normalizedPath
+          )
         ) {
           const epoch = new Date(0);
           return {
@@ -122,41 +119,8 @@ export function createClaudeVirtualSessionFileAdapter({
         }
 
         const epoch = new Date(0);
-        if (normalizedPath.endsWith('.claude/settings.json')) {
-          // settings.json virtual file
 
-          return {
-            mode: 0o644,
-            size: settingsContent.length,
-            isFile: () => true,
-            isDirectory: () => false,
-            isSymbolicLink: () => false,
-            isBlockDevice: () => false,
-            isCharacterDevice: () => false,
-            isSocket: () => false,
-            isFIFO: () => false,
-            isFileSync: () => true,
-            isDirectorySync: () => false,
-            dev: 0,
-            ino: 0,
-            nlink: 1,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 4096,
-            blocks: Math.ceil(settingsContent.length / 4096),
-            atimeMs: epoch,
-            mtimeMs: epoch,
-            ctimeMs: epoch,
-            birthtimeMs: epoch,
-            atime: epoch,
-            mtime: epoch,
-            ctime: epoch,
-            birthtime: epoch,
-          };
-        }
-
-        const stat = await cacheFs.promises.stat(filePath);
+        const stat = await claudeMemFs.promises.stat(filePath);
         return stat;
         //   return {
         //     mode: stat.mode,
@@ -191,29 +155,30 @@ export function createClaudeVirtualSessionFileAdapter({
       },
       getFile: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
         const normalizedPath = filePath.replace(/\\/g, '/');
-        if (normalizedPath.endsWith('.claude/settings.json')) {
-          return {
-            type: 'file',
-            content: settingsContent,
-            mode: 0o644,
-            size: settingsContent.length,
-            oid: 'unknown',
-          };
-        }
+        // if (normalizedPath.endsWith('.claude/settings.json')) {
+        //   return {
+        //     type: 'file',
+        //     content: settingsContent,
+        //     mode: 0o644,
+        //     size: settingsContent.length,
+        //     oid: 'unknown',
+        //   };
+        // }
 
         if (
-          normalizedPath.endsWith('.claude') ||
-          normalizedPath.endsWith('.claude/session_data') ||
-          normalizedPath.endsWith('.claude/session_data/projects') ||
-          normalizedPath.endsWith('.claude/session_data/debug') ||
-          /\.claude\/session_data\/projects\/[^/]+$/.test(normalizedPath)
+          normalizedPath.endsWith(`${sessionDataPath}`) ||
+          normalizedPath.endsWith(`${sessionDataPath}/projects`) ||
+          normalizedPath.endsWith(`${sessionDataPath}/debug`) ||
+          new RegExp(`${sessionDataPath}\\/projects\\/[^/]+$`).test(
+            normalizedPath
+          )
         ) {
-          await cacheFs.promises.mkdir(filePath, { recursive: true });
+          await claudeMemFs.promises.mkdir(filePath, { recursive: true });
         }
         try {
-          const stat = await cacheFs.promises.stat(filePath);
+          const stat = await claudeMemFs.promises.stat(filePath);
           if (stat.isFile()) {
-            const content = await cacheFs.promises.readFile(filePath);
+            const content = await claudeMemFs.promises.readFile(filePath);
             const blob = content;
 
             return {
@@ -224,7 +189,7 @@ export function createClaudeVirtualSessionFileAdapter({
               oid: 'unknown',
             };
           } else {
-            const allEntries = await cacheFs.promises.readdir(filePath, {
+            const allEntries = await claudeMemFs.promises.readdir(filePath, {
               withFileTypes: true,
             });
 
@@ -328,7 +293,7 @@ export function createClaudeVirtualSessionFileAdapter({
         pathParams,
         author,
       }) => {
-        await cacheFs.promises.unlink(filePath);
+        await claudeMemFs.promises.unlink(filePath);
       },
 
       writeFile: async ({
@@ -354,7 +319,7 @@ export function createClaudeVirtualSessionFileAdapter({
 
           console.log({ folder, file });
 
-          const cached = await cacheFs.promises
+          const cached = await claudeMemFs.promises
             .stat(filePath)
             .then(() => true)
             .catch(() => false);
@@ -362,11 +327,17 @@ export function createClaudeVirtualSessionFileAdapter({
           if (!cached) {
             // check if the branch for the file exists
             // load session file content from commit history
-            await cacheFs.promises.writeFile(filePath, '');
+            await claudeMemFs.promises.mkdir(
+              filePath.substring(0, filePath.lastIndexOf('/')),
+              { recursive: true }
+            );
+            await claudeMemFs.promises.writeFile(filePath, '');
           }
 
+          await claudeMemFs.promises.writeFile(filePath, content);
+
           // substract existing content from new content and write new content to branch, update file content
-          const currentContent = await cacheFs.promises.readFile(
+          const currentContent = await claudeMemFs.promises.readFile(
             filePath,
             'utf-8'
           );
@@ -432,7 +403,11 @@ export function createClaudeVirtualSessionFileAdapter({
           }
         } else {
           console.log('No match');
-          await cacheFs.promises.writeFile(filePath, content);
+          await claudeMemFs.promises.mkdir(
+            filePath.substring(0, filePath.lastIndexOf('/')),
+            { recursive: true }
+          );
+          await claudeMemFs.promises.writeFile(filePath, content);
         }
       },
 
@@ -447,14 +422,17 @@ export function createClaudeVirtualSessionFileAdapter({
         cacheFs,
       }) {
         // Parse the path to get branch name and file path
-        await cacheFs.promises.rename(filePath, newPath);
+        await claudeMemFs.promises.rename(filePath, newPath);
       },
 
       mkdir: async function (args) {
-        await args.cacheFs.promises.mkdir(args.filePath, { recursive: true });
+        // Use isolated memfs instance for .claude directory operations
+        await claudeMemFs.promises.mkdir(args.filePath, { recursive: true });
       },
 
       rmdir: async ({ filePath, gitRoot, cacheFs, pathParams, author }) => {
+        await claudeMemFs.promises.rmdir(filePath);
+
         // done by outer system await cacheFs.promises.rmdir(filePath);
       },
     },
@@ -471,8 +449,5 @@ export function createClaudeVirtualSessionFileAdapter({
     return normalizedPath.startsWith('/.claude');
   };
 
-  adapter.getAuthor = async () => {
-    return {};
-  };
   return adapter;
 }
