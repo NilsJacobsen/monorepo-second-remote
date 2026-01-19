@@ -1161,6 +1161,7 @@ export const createAsyncNfsHandler = (args: {
         console.error(`Invalid file handle: ${handle.toString('hex')}`);
         return {
           status: nfsstat3.ERR_STALE,
+          error: new Error(`Invalid file handle: ${handle.toString('hex')}`),
         };
       }
 
@@ -1269,18 +1270,19 @@ export const createAsyncNfsHandler = (args: {
         const statsBefore = await fsHandle.stat();
         // Check if guardCtime is specified
         if (guardCtime) {
-          console.log(`Guard ctime specified, but not yet implemented`);
-          // TODO: Implement guard ctime checking
+          // guardtime allows to do optimitic locking based on ctime
+          // it is currently not used by the mac client.
+          throw new Error('guardCTime not yet supported');
         }
 
         // Apply attribute changes as needed
         if (attributes.mode !== undefined) {
-          console.log(`Changing mode to ${attributes.mode}`);
+          // console.log(`Changing mode to ${attributes.mode}`);
           await fsHandle.chmod(attributes.mode);
         }
 
         // if (attributes.uid !== undefined || attributes.gid !== undefined) {
-        //   console.log(
+        //   // console.log(
         //     `Changing owner to uid=${attributes.uid}, gid=${attributes.gid}`,
         //   );
         //   await unionFs.chown(
@@ -1291,7 +1293,7 @@ export const createAsyncNfsHandler = (args: {
         // }
 
         if (attributes.size !== undefined) {
-          console.log(`Truncating file to size ${attributes.size}`);
+          // console.log(`Truncating file to size ${attributes.size}`);
           // Get stats before truncating
 
           // Perform the truncation
@@ -1299,9 +1301,9 @@ export const createAsyncNfsHandler = (args: {
         }
 
         if (attributes.atime !== undefined || attributes.mtime !== undefined) {
-          console.log(
-            `Setting times: atime=${attributes.atime}, mtime=${attributes.mtime}`
-          );
+          // console.log(
+          //   `Setting times: atime=${attributes.atime}, mtime=${attributes.mtime}`
+          // );
 
           // Use current time for any unspecified time
           const atime = attributes.atime || statsBefore.atime;
@@ -1313,6 +1315,11 @@ export const createAsyncNfsHandler = (args: {
         // await fsHandle.datasync();
         // Get current file stats after changes
         const statsAfter = await fsHandle.stat();
+
+        await fsHandle.close();
+
+        // get rid of the fh reference
+        nfsHandle.fsHandle.fh = undefined;
 
         return {
           status: nfsstat3.OK,
