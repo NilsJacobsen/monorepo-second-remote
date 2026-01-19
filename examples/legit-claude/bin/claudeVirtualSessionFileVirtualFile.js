@@ -77,7 +77,8 @@ export function createClaudeVirtualSessionFileAdapter({
       type: 'claudeVirtualSessionFileVirtualFile',
       rootType: 'folder',
 
-      getStats: async ({ filePath, cacheFs, pathParams }) => {
+      getStats: async ({ filePath, cacheFs, pathParams, userSpaceFs }) => {
+        console.log('getStats called for path:', filePath);
         // Return folder stats for specific .claude paths regardless of cache
         const normalizedPath = filePath.replace(/\\/g, '/');
         if (
@@ -118,6 +119,65 @@ export function createClaudeVirtualSessionFileAdapter({
           };
         }
 
+        if (
+          new RegExp(
+            `${sessionDataPath}\\/projects\\/[^/]+\\/[0-9a-fA-F-]{36}\\.jsonl$`
+          ).test(normalizedPath)
+        ) {
+          console.log('getStats for session project file:', filePath);
+
+          // Check if this is the special UUID file
+          const filename = normalizedPath.split('/').pop();
+          if (filename === '00000000-0000-0000-0000-000000000000.jsonl') {
+            // Check if file exists in claudeMemFs
+            const fileExists = await claudeMemFs.promises
+              .stat(filePath)
+              .then(() => true)
+              .catch(() => false);
+
+            if (!fileExists) {
+              console.log(
+                'Creating initial session file with UUID 00000000-0000-0000-0000-000000000000.jsonl'
+              );
+              // Create parent directory if it doesn't exist
+              await claudeMemFs.promises.mkdir(
+                filePath.substring(0, filePath.lastIndexOf('/')),
+                { recursive: true }
+              );
+
+              const historyPath =
+                userSpaceFs.rootPath + '/.legit/operationHistory';
+              const historyContentRaw = await userSpaceFs.readFile(
+                historyPath,
+                'utf-8'
+              );
+              const history = JSON.parse(historyContentRaw || '[]');
+
+              const entries = history.map(entry => {
+                return entry.message.split('\n\n---\n\n \n\n ')[1];
+              });
+
+              const entriesReversed = entries.reverse();
+
+              const initialContent = entriesReversed.join('');
+
+              // // Write initial content - split into multiple JSON lines
+              // const line1 =
+              //   '{"type":"summary","summary":"Codebase Exploration and Familiarization","leafUuid":"fc1640cd-a759-4ed0-bf17-bc4a0cd1b7bb"}';
+              // const line2 =
+              //   '{"parentUuid":null,"isSidechain":false,"userType":"external","cwd":"/Users/martinlysk/legit/sample-repos/new-jan-nfs","sessionId":"ee8fddb4-df24-43f6-87d3-939457a6942c","version":"2.0.27","gitBranch":"","type":"user","message":{"role":"user","content":"tesst"},"uuid":"cc60f59a-7933-4bf3-92c7-8b6bbd751d41","timestamp":"2026-01-17T08:18:44.851Z","thinkingMetadata":{"level":"high","disabled":false,"triggers":[]}}';
+              // const line3 =
+              //   '{"parentUuid":"cb3ed72f-0edb-4e5a-8d4c-3204694c1cfd","isSidechain":true,"userType":"external","cwd":"/Users/martinlysk/legit/sample-repos/new-jan-nfs","sessionId":"ee8fddb4-df24-43f6-87d3-939457a6942c","version":"2.0.27","gitBranch":"","message":{"id":"msg_20260117161844427171c0d74848cc","type":"message","role":"assistant","model":"glm-4.5-air","content":[{"type":"text","text":"I\'ll help you explore this codebase. Let me start by getting an overview of the directory structure and then we can search for specific files or content based on your needs.\\n\\n```bash\\nBash\\ncommand: find /Users/martinlysk/legit/sample-repos/new-jan-nfs -type f -name \\"*.py\\" -o -name \\"*.js\\" -o -name \\"*.ts\\" -o -name \\"*.json\\" -o -name \\"*.md\\" -o -name \\"*.txt\\" -o -name \\"*.yml\\" -o -name \\"*.yaml\\" | head -20\\ndescription: List first 20 common code files in the repository\\n```\\n\\n```bash\\nBash\\ncommand: ls -la /Users/martinlysk/legit/sample-repos/new-jan-nfs\\ndescription: List directory contents\\n```\\n\\n```bash\\nBash\\ncommand: find /Users/martinlysk/legit/sample-repos/new-jan-nfs -type f | wc -l\\ndescription: Count total number of files in the repository\\n```\\n\\n```bash\\nBash\\ncommand: find /Users/martinlysk/legit/sample-repos/new-jan-nfs -type d | head -10\\ndescription: List first 10 directories in the repository\\n```\\n\\nBased on the initial exploration, this repository appears to be a new project structure. I can see we have:\\n\\n- **Total files**: The repo\\n... (truncated)\\n\\nJust let me know what you\'re looking for and I\'ll use the appropriate search methods to find it.\\"}],"stop_reason":"end_turn","stop_sequence":null,"usage":{"input_tokens":150,"output_tokens":660,"cache_read_input_tokens":452,"server_tool_use":{"web_search_requests":0}}},"type":"assistant","uuid":"2f8ebfd3-3776-4ed4-b994-4865d17d7163","timestamp":"2026-01-17T08:19:04.183Z"}';
+
+              // const initialContent = line1 + '\n' + line2 + '\n' + line3 + '\n';
+
+              console.log('writing content to session file:', initialContent);
+
+              await claudeMemFs.promises.writeFile(filePath, initialContent);
+            }
+          }
+        }
+
         const epoch = new Date(0);
 
         const stat = await claudeMemFs.promises.stat(filePath);
@@ -154,6 +214,7 @@ export function createClaudeVirtualSessionFileAdapter({
         // }
       },
       getFile: async ({ filePath, gitRoot, nodeFs, cacheFs, pathParams }) => {
+        console.log('getFile called for path:', filePath);
         const normalizedPath = filePath.replace(/\\/g, '/');
         // if (normalizedPath.endsWith('.claude/settings.json')) {
         //   return {
@@ -293,6 +354,7 @@ export function createClaudeVirtualSessionFileAdapter({
         pathParams,
         author,
       }) => {
+        console.log('unlink called for path:', filePath);
         await claudeMemFs.promises.unlink(filePath);
       },
 
@@ -306,7 +368,9 @@ export function createClaudeVirtualSessionFileAdapter({
         pathParams,
         author,
       }) => {
-        // if (filePath.endsWith('.claude/settings.json')) {
+        console.log('writeFile called for path:', filePath);
+        // if (filePath.ends
+        // With('.claude/settings.json')) {
         const normalizedPath = filePath.replace(/\\/g, '/');
 
         const sesssionFileRegex = /\/projects\/([^/]+)\/([^/]+\.jsonl)$/;
@@ -318,6 +382,9 @@ export function createClaudeVirtualSessionFileAdapter({
           const file = match[2];
 
           console.log({ folder, file });
+
+          // check if a 0000 file exists - and our current file name branches away - we resume an existing session and claude seem to
+          // fork a new session from the current one?
 
           const cached = await claudeMemFs.promises
             .stat(filePath)
@@ -334,72 +401,88 @@ export function createClaudeVirtualSessionFileAdapter({
             await claudeMemFs.promises.writeFile(filePath, '');
           }
 
-          await claudeMemFs.promises.writeFile(filePath, content);
+          const isResumedSession = await claudeMemFs.promises
+            .stat(
+              filePath.split('/').slice(0, -1).join('/') +
+                '/00000000-0000-0000-0000-000000000000.jsonl'
+            )
+            .then(() => true)
+            .catch(() => false);
 
-          // substract existing content from new content and write new content to branch, update file content
-          const currentContent = await claudeMemFs.promises.readFile(
-            filePath,
-            'utf-8'
-          );
+          if (
+            (isResumedSession &&
+              file === '00000000-0000-0000-0000-000000000000.jsonl') ||
+            !isResumedSession
+          ) {
+            await claudeMemFs.promises.writeFile(filePath, content);
 
-          const lines = currentContent.split('\n');
-          if (lines.length > 1) {
-            const lastLine = lines[lines.length - 2] || '';
+            const lines = content.toString().split('\n');
+            if (lines.length > 1) {
+              const lastLine = lines[lines.length - 2] || '';
 
-            // await cacheFs.promises.appendFile(filePath, appendedContent);
+              // await cacheFs.promises.appendFile(filePath, appendedContent);
 
-            const parsed = JSON.parse(lastLine);
-
-            let textualDesscription = '';
-
-            if (parsed.type === 'user') {
-              // Check if this is a tool result (AI action result) or actual user input
-              const content = parsed.message?.content;
-              const isToolResult =
-                Array.isArray(content) && content[0]?.type === 'tool_result';
-
-              if (isToolResult) {
-                // This is a tool result from an AI action
-                const toolResult = content[0];
-                const resultContent =
-                  typeof toolResult.content === 'string'
-                    ? toolResult.content
-                    : JSON.stringify(toolResult.content);
-                textualDesscription = `👾 Tool Result (${parsed.toolUseResult?.type || 'unknown'}): ${resultContent}\n\n---\n\n`;
-              } else {
-                // This is actual user input
-                const userMessage =
-                  typeof content === 'string'
-                    ? content
-                    : content?.[0]?.content || 'User action';
-                textualDesscription = `👤 ${userMessage}\n\n---\n\n`;
-              }
-            } else if (parsed.type === 'assistant') {
-              // Extract assistant message content
-              const assistantContent = parsed.message?.content?.[0];
-              let description = '';
-
-              if (assistantContent?.type === 'text') {
-                description = assistantContent.text;
-              } else if (assistantContent?.type === 'tool_use') {
-                description = `Used tool: ${assistantContent.name} with input: ${JSON.stringify(assistantContent.input)}`;
-              } else {
-                description = 'Assistant response';
+              let parsed;
+              try {
+                parsed = JSON.parse(lastLine);
+              } catch (error) {
+                console.error('Error parsing JSON line:', error);
+                return;
               }
 
-              textualDesscription = `👾 ${description}\n\n---\n\n`;
-            } else if (parsed.type === 'file-history-snapshot') {
-              textualDesscription = `System: File history snapshot for message ${parsed.messageId}\n\n---\n\n`;
-            } else {
-              textualDesscription = `System: ${parsed.type || 'unknown action'}\n\n---\n\n`;
+              let textualDesscription = '';
+
+              if (parsed.type === 'user') {
+                // Check if this is a tool result (AI action result) or actual user input
+                const content = parsed.message?.content;
+                const isToolResult =
+                  Array.isArray(content) && content[0]?.type === 'tool_result';
+
+                if (isToolResult) {
+                  // This is a tool result from an AI action
+                  const toolResult = content[0];
+                  const resultContent =
+                    typeof toolResult.content === 'string'
+                      ? toolResult.content
+                      : JSON.stringify(toolResult.content);
+                  textualDesscription = `👾 Tool Result (${parsed.toolUseResult?.type || 'unknown'}): ${resultContent}\n\n---\n\n`;
+                } else {
+                  // This is actual user input
+                  const userMessage =
+                    typeof content === 'string'
+                      ? content
+                      : content?.[0]?.content || 'User action';
+                  textualDesscription = `👤 ${userMessage}\n\n---\n\n`;
+                }
+              } else if (parsed.type === 'assistant') {
+                // Extract assistant message content
+                const assistantContent = parsed.message?.content?.[0];
+                let description = '';
+
+                if (assistantContent?.type === 'text') {
+                  description = assistantContent.text;
+                } else if (assistantContent?.type === 'tool_use') {
+                  description = `Used tool: ${assistantContent.name} with input: ${JSON.stringify(assistantContent.input)}`;
+                } else {
+                  description = 'Assistant response';
+                }
+
+                textualDesscription = `👾 ${description}\n\n---\n\n`;
+              } else if (parsed.type === 'file-history-snapshot') {
+                textualDesscription = `System: File history snapshot for message ${parsed.messageId}\n\n---\n\n`;
+              } else {
+                textualDesscription = `System: ${parsed.type || 'unknown action'}\n\n---\n\n`;
+              }
+
+              console.log('operation wrtingin test to file with desscription:');
+              await userSpaceFs.promises.writeFile(
+                gitRoot + '/.legit/operation',
+
+                textualDesscription + ' \n\n ' + lastLine
+              );
             }
-
-            console.log('operation wrtingin test to file with desscription:');
-            await userSpaceFs.promises.writeFile(
-              gitRoot + '/.legit/operation',
-
-              textualDesscription + ' \n\n ' + lastLine
-            );
+          } else {
+            await claudeMemFs.promises.writeFile(filePath, content);
           }
         } else {
           console.log('No match');
@@ -421,11 +504,13 @@ export function createClaudeVirtualSessionFileAdapter({
         author,
         cacheFs,
       }) {
+        console.log('rename called for path:', filePath);
         // Parse the path to get branch name and file path
         await claudeMemFs.promises.rename(filePath, newPath);
       },
 
       mkdir: async function (args) {
+        console.log('unlink called for path:', args.filePath);
         // Use isolated memfs instance for .claude directory operations
         await claudeMemFs.promises.mkdir(args.filePath, { recursive: true });
       },
