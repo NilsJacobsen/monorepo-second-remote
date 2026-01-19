@@ -168,6 +168,27 @@ export class SimpleMemorySubFs extends ASimpleCompositeSubfs {
     }
   }
 
+  async futimes(fh, atime, mtime) {
+    // If both times are Unix epoch (0), skip the update
+    if (
+      (typeof atime === 'number' && atime === 0) ||
+      (atime instanceof Date && atime.getTime() === 0)
+    ) {
+      if (
+        (typeof mtime === 'number' && mtime === 0) ||
+        (mtime instanceof Date && mtime.getTime() === 0)
+      ) {
+        return;
+      }
+    }
+
+    const openFh = this.openFh[fh.subFsFileDescriptor];
+    if (!openFh) {
+      throw new Error('Invalid file handle');
+    }
+    return await openFh.fh.utimes(atime, mtime);
+  }
+
   async getStats({ path, context }) {
     const normalizedPath = this._normalizePath(path);
     const node = this.storage.get(normalizedPath);
