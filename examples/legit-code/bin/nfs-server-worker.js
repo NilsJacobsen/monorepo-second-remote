@@ -41,7 +41,7 @@ try {
 
   const overrideConfig = {
     '[[...filePath]]': {
-      '.claude': legitVirtualFileAdapter,
+      '.claude-session': legitVirtualFileAdapter,
     },
   };
   const legitFs = await openLegitFs({

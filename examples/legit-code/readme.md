@@ -1,32 +1,31 @@
-Legit Claude: Store Your AI Conversations Next to Your Code
+Legit Claude: 
+
+Store Your AI Conversations Next to Your Code
 
 `legit-claude` is a CLI wrapper around claude that stores your claude conversations next to your code - right in your Repository.
 
-# The Pain - Background story - Motivation
+# Motivation
 
-I lost my last position as Staff of Engeneering at Opral because of AI - kind of. 
+I lost my last position as Staff of Engeneering because of AI - kind of. 
 The Founder was based in New york while I was working from Berlin. 
 
 AI really gave a boost regarding throughput - but Timezone killed the productivety.
 
-I was looking at huge Piles of changes thoughout the code base.
-While AI helped a lot to summarize what was done pretty - an impoartant information was missing... 
+Every Morning I was looking at huge Piles of changes thoughout the code base.
+While AI helped a lot to summarize what was done - One impoartant piece of information was missing... 
 
-THE WHY. Why was a Problem Solved in a particular way?
+THE WHY. Why was a Problem Solved in a particular way and more importantly - what alternatives have been considered.
 
 The craftmen ship of software development is not to solve a Problem - its to know which solution should be taken. 
 
 In Software ther is not the one solution its more choosing among manz options with different tradeoffs. 
 
-Ai can be a great sparring partner to brainstorm and helps a lot to navigate the problem space.
-And the outcome of such sessions often produce suprisingly elegant solutions.
+Ai can be an incredible sparring partner to brainstorm and helps a lot to navigate the problem space. And the outcome of such sessions often produce suprisingly elegant solutions.
 
-This ideation process finally leads to a result - a pr with wonderfull "crafted" new iteration of your code, your new architecture, your new design that solution that turned all the tests green and works just great... for now. 
-But this is only the tip of the iceberg - the results are missing all the failed attemts the rejected alternatives. All the process 
-torwards your result is burried in the conversation with the ai. 
+Such ideation processes finally leads to a result - a pr with wonderfull "crafted" new iteration of your code, your new architecture, your new design that solution that turned all the tests green and works just great... for now. 
+But this is only the tip of the iceberg - the results are missing all the failed attemts the rejected alternatives. All the process torwards your result is burried in the conversation with the ai. While suche information used to exist in PR discussion among the the team or at least stick in the architects head - the rappid nature of "vibe" coding screams for an alternative.
 
-After some time of reflection on my previous job I think the small time overlap could have been used way better if the reasoning for a result would have been
-accessible to the team. 
+After some time of reflection on my previous job I think the small time overlap could have been used way better if the reasoning for a result would have been accessible to the team. 
 
 # The probelem
 
@@ -65,19 +64,28 @@ When you start a new session Legit creates three branches.
 
 2. Claude Session Branch - "claude/Feature-a": This branch contains a commit for every change claude applies to a file in the repo
 
-3. Claude conversation branch - "claude/Feature-a-operations": This branch stores all prompts, all toolcalls, all answers. A commit for every state of claud's session. It maps 1:1 to a commit per row in claudes sesseion file (*.jsonl). 
+3. Claude conversation branch - "claude/Feature-a-operations": This branch stores all prompts, all toolcalls, all answers. A commit for every state of claud's sessions. It maps 1:1 to a commit per row in claudes sesseion file (*.jsonl). 
 
 ## How do you get the History from and into Claude cli?
 
 Claude stores its sessions localy - usually under the folder `~/.claude/local` inside of jsonl files.
 Each line of the `jsonl` file represents an operation inside of claude - this can be a prompt by the user, a tool call or a response. The Location can be configured by changing `CLAUDE_CONFIG_DIR`.
 
-Now legit enters the game. When you start legit-claude it mounts a LegitFS (https://www.legitcontrol.com/docs/concepts/filesystem-api) based on the current Folder via NFS3. 
-By configuring claude (via CLAUDE_CONFIG_DIR) to write to a folder managed by LegitFS we control every read and write of claudes `jsonl` session files.
+This is legit comes into play:
 
-When claude write a new line to the session `jsonl` file legit adds a commit with Human friendly description followed by original payload of claude.
+When you start legit-claude it:
+1. spawnss an NFS serverm baked by legit fs LegitFS (https://www.legitcontrol.com/docs/concepts/filesystem-api) pointing to the current working directory (your project folder). 
+2. Mounts the legitfs bakeds nfs localy (current folder + -nfs) and 
+3. starts claude within the mounted folder
 
-When claude reads the session - for example to continue it, legit jusst projects the payload from the commits back into the session file. 
+By configuring claude (via CLAUDE_CONFIG_DIR) to write to a folder managed by LegitFS the virtual file system controls every read and write - also every fs operation on claudes `jsonl` session files.
+
+When claude write a new line to the session `jsonl` file it actually writes into a virtual file.
+You can think of it as a "web server that serves the file" - in this case via the filesytem.
+
+When claude add a new file to the session's jsonl we utilize legit's operation file to store that line as a commit in your git repo. 
+
+When claude reads the session - for example to continue it, legit just projects the payload from the commits back into the session file. 
 
 
 2. Conversational Commits

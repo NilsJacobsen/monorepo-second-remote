@@ -11,6 +11,18 @@ import * as net from 'net';
 
 import { exec } from 'child_process';
 import { Command } from 'commander';
+import { sessionDataPath } from './claudeVirtualSessionFileVirtualFile.js';
+
+const settingsContent = JSON.stringify(
+  {
+    env: { CLAUDE_CONFIG_DIR: sessionDataPath },
+    permissions: {
+      deny: ['Read(.legit/**)'],
+    },
+  },
+  null,
+  2
+);
 
 // Function to check if a port is available
 function isPortAvailable(port) {
@@ -64,15 +76,15 @@ function promptForCommitMessage() {
   });
 }
 
-function spawnSubProcess(cwd, cmd) {
+function spawnSubProcess(cwd, cmd, parameters = []) {
   return new Promise((resolve, reject) => {
-    // console.log(`\nSpawn process process... ` + cmd + ' in ' + cwd);
+    // console.log(`\nSpawn process process... ` + cmd + ' in ' + cwd, `--settings="${settingsContent}"`);
 
     // Execute the command through shell (handles command parsing automatically)
-    const child = spawn(cmd, [], {
+    const child = spawn(cmd, parameters, {
       cwd: cwd,
       stdio: 'inherit',
-      shell: true,
+      shell: false,
     });
 
     child.on('close', code => {
@@ -224,7 +236,7 @@ function mountNfsShare(mountPoint, port) {
       }
 
       // Mount the NFS share
-      const mountCommand = `mount_nfs -o noappledouble,noapplexattr,nolocks,soft,retrans=2,timeo=10,vers=3,tcp,rsize=131072,actimeo=120,port=${port},mountport=${port} localhost:/ ${mountPoint}`;
+      const mountCommand = `mount_nfs -o nolocks,soft,retrans=2,timeo=10,vers=3,tcp,rsize=131072,actimeo=120,port=${port},mountport=${port} localhost:/ ${mountPoint}`;
 
       exec(mountCommand, mountErr => {
         if (mountErr) {
@@ -327,11 +339,6 @@ async function main() {
     options.port = await findAvailablePort(13617);
   }
 
-  // console.log('Repository path:', options.repoPath);
-  // console.log('Mount path:', options.mountPath);
-  // console.log('Port:', options.port);
-  // console.log('Should spawn:', options.spawn);
-
   let nfsServerProcess;
 
   try {
@@ -401,7 +408,7 @@ async function main() {
       }
     }
 
-    // Create the base branch for the session set the target branch to the new branch
+    // Create the base branch for the session by setting currentBranch to sessionName
     if (createSession) {
       fsDisk.writeFileSync(currentBranchPath, sessionName, 'utf-8');
       console.log(
@@ -410,21 +417,28 @@ async function main() {
       currentBranch = sessionName;
     }
 
-    // set the target branch to the basse branch
+    // set the legit reference branch to the base branch
     const targetBranchPath = path.join(
       options.mountPath,
       '.legit',
       'reference-branch'
     );
-    fsDisk.writeFileSync(targetBranchPath, currentBranch, 'utf-8');
+    fsDisk.writeFileSync(targetBranchPath, sessionName, 'utf-8');
 
-    // now change brach to the the claude branch:
-    const claudeBranch = `claude.${currentBranch}`;
+    // use legit currentBranch to change the branch to the the claudesession branch
+    const claudeBranch = `claude.${sessionName}`;
     fsDisk.writeFileSync(currentBranchPath, claudeBranch, 'utf-8');
 
+    const cb = fsDisk.readFileSync(currentBranchPath, 'utf-8');
+    console.log(`Switched to Claude session branch: ${cb.trim()}`);
+
+    const args = ['--settings', settingsContent];
+    if (!createSession) {
+      args.push('--resume', '00000000-0000-0000-0000-000000000000');
+    }
     // Run the command in the mounted directory
-    console.log('spawn subprocess ...');
-    await spawnSubProcess(options.mountPath, options.spawn);
+    console.log('spawn subprocess ...', args);
+    await spawnSubProcess(options.mountPath, options.spawn, args);
 
     // After successful completion, prompt for commit message
     const answer = await inquirer.prompt([
