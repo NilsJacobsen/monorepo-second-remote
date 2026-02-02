@@ -245,7 +245,7 @@ const DemoComponent = () => {
   return (
     <div>
       <div className="grid grid-cols-1 lg:grid-cols-20">
-        <div className="group col-span-13 border border-zinc-400 focus-within:border-black shadow-[8px_8px_0_0_rgba(135,135,135,0.5)]">
+        <div className="group col-span-13 border border-zinc-400 focus-within:border-black shadow-[8px_8px_0_0_rgba(135,135,135,0.5)] relative z-10">
           <div className="h-[34px] flex items-center px-4 bg-zinc-100">
             <div className="flex items-center gap-2">
               <div className="w-2.5 h-2.5 bg-primary" />
@@ -307,15 +307,15 @@ const DemoComponent = () => {
             </div>
           </div>
         </div>
-        <div className="col-span-7 border border-zinc-400 lg:border-l-0 my-auto lg:h-[400px] lg:overflow-y-scroll pt-4 lg:pt-0 mx-4 lg:mx-0">
-          <div className="h-[34px] flex items-center justify-between px-4 font-mono text-zinc-600 text-sm border-b border-zinc-400">
+        <div className="relative -z-0 col-span-7 border border-zinc-400 lg:border-l-0 my-auto lg:h-[400px] lg:overflow-y-scroll pt-4 lg:pt-0 mx-4 lg:mx-0">
+          <div className="h-[38px] flex items-center justify-between px-4 font-mono text-zinc-600 text-sm bg-zinc-100">
             <span>Legit state</span>
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 font-sans cursor-pointer">
               <button
                 onClick={() => setActiveTab('history')}
-                className={`px-3 py-1 text-xs transition-all duration-100 ${
+                className={`px-1 py-1 text-[14px] transition-all duration-100 cursor-pointer ${
                   activeTab === 'history'
-                    ? 'bg-zinc-200 text-zinc-900'
+                    ? 'text-zinc-900 font-semibold'
                     : 'text-zinc-500 hover:text-zinc-700'
                 }`}
               >
@@ -323,9 +323,9 @@ const DemoComponent = () => {
               </button>
               <button
                 onClick={() => setActiveTab('code')}
-                className={`px-3 py-1 text-xs transition-all duration-100 ${
+                className={`px-1 py-1 text-[14px] transition-all duration-100 cursor-pointer ${
                   activeTab === 'code'
-                    ? 'bg-zinc-200 text-zinc-900'
+                    ? 'text-zinc-900 font-semibold'
                     : 'text-zinc-500 hover:text-zinc-700'
                 }`}
               >
@@ -333,8 +333,9 @@ const DemoComponent = () => {
               </button>
             </div>
           </div>
-          <div className="px-4 py-2">
+          <div>
             {activeTab === 'history' ? (
+              <div className="px-4 py-3">
               <AsciiHistoryGraph
                 branches={[
                   {
@@ -360,11 +361,18 @@ const DemoComponent = () => {
                 onCommitClick={getDiff}
                 collapsibleContent={loadedCommit}
               />
+              </div>
             ) : (
               <div className="max-h-[360px] overflow-y-auto">
                 <SyntaxHighlighter
                   language="javascript"
                   className="text-[13px] bg-white"
+                  customStyle={{
+                    backgroundColor: 'white',
+                    padding: 24,
+                    paddingTop: 16,
+                    paddingRight: 0
+                  }}
                   style={docco}
                 >
                   {codeExample.trim()}
